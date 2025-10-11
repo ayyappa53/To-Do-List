@@ -32,6 +32,274 @@
 
 
 
+
+
+import React from 'react';
+import { Mail, Phone, Facebook, Twitter, Linkedin } from 'lucide-react';
+import './Footer.css';
+
+const Footer = () => {
+  return (
+    <footer className="footer-dashboard">
+      <div className="footer-dashboard-content">
+        <div className="footer-dashboard-section">
+          <h3 className="footer-dashboard-title">About NGOS</h3>
+          <p className="footer-dashboard-text">
+            Effortless credit card management, secure and reliable. We help you streamline your workflow and improve customer satisfaction.
+          </p>
+          <p className="footer-dashboard-tagline">NGOS - Your trusted partner in credit card management.</p>
+        </div>
+        <div className="footer-dashboard-section">
+          <h3 className="footer-dashboard-title">Contact Us</h3>
+          <div className="footer-dashboard-contact">
+            <div className="footer-dashboard-contact-item">
+              <Mail className="footer-dashboard-contact-icon" size={20} />
+              <span>contact@ngos.com</span>
+            </div>
+            <div className="footer-dashboard-contact-item">
+              <Phone className="footer-dashboard-contact-icon" size={20} />
+              <span>+91 12345 67890</span>
+            </div>
+          </div>
+        </div>
+        <div className="footer-dashboard-section">
+          <h3 className="footer-dashboard-title">Follow Us</h3>
+          <div className="footer-dashboard-social">
+            <div className="footer-dashboard-social-icon">
+              <Facebook size={20} />
+            </div>
+            <div className="footer-dashboard-social-icon">
+              <Twitter size={20} />
+            </div>
+            <div className="footer-dashboard-social-icon">
+              <Linkedin size={20} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
+export default Footer;
+
+
+/* Footer */
+.footer-dashboard {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    padding: 60px 40px;
+    margin-top: 80px;
+    margin-left: -40px;
+    margin-right: -40px;
+    margin-bottom: 0;
+}
+
+.footer-dashboard-content {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 60px;
+    max-width: 1200px;
+    margin: 0 auto;
+    align-items: start;
+}
+
+.footer-dashboard-section {
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+.footer-dashboard-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    margin-top: 0;
+    color: white;
+    letter-spacing: -0.3px;
+}
+
+.footer-dashboard-text {
+    font-size: 15px;
+    color: #cbd5e1;
+    line-height: 1.8;
+    margin: 0 0 16px 0;
+}
+
+.footer-dashboard-tagline {
+    font-size: 14px;
+    color: #94a3b8;
+    font-style: italic;
+    margin: 0;
+}
+
+.footer-dashboard-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 4px;
+}
+
+.footer-dashboard-contact-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #cbd5e1;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.footer-dashboard-contact-item:hover {
+    color: #818cf8;
+    transform: translateX(5px);
+}
+
+.footer-dashboard-contact-icon {
+    width: 20px;
+    height: 20px;
+    color: #818cf8;
+    flex-shrink: 0;
+}
+
+.footer-dashboard-social {
+    display: flex;
+    gap: 16px;
+    margin-top: 4px;
+}
+
+.footer-dashboard-social-icon {
+    width: 44px;
+    height: 44px;
+    background: rgba(129, 140, 248, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #818cf8;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: 1px solid rgba(129, 140, 248, 0.2);
+}
+
+.footer-dashboard-social-icon:hover {
+    background: #818cf8;
+    color: white;
+    transform: translateY(-5px);
+    border-color: #818cf8;
+}
+
+/* Mobile Responsive */
+@media (max-width: 1024px) {
+    .footer-dashboard-content {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 40px;
+    }
+}
+
+@media (max-width: 768px) {
+    .footer-dashboard {
+        padding: 40px 20px;
+        margin-left: -16px;
+        margin-right: -16px;
+        margin-top: 60px;
+    }
+
+    .footer-dashboard-social {
+        margin-left: 0px;
+    }
+
+    .footer-dashboard-contact {
+        margin-left: 0px;
+    }
+
+    .footer-dashboard-content {
+        grid-template-columns: 1fr;
+        gap: 40px;
+    }
+
+    .footer-dashboard-section {
+        text-align: center;
+    }
+
+    .footer-dashboard-contact {
+        align-items: center;
+    }
+
+    .footer-dashboard-social {
+        justify-content: center;
+    }
+}
+
+
+
+
+
+
+import React, { useState } from "react";
+import Navbar from "../Navabar/Navbar";
+import Sidebar from "../Sidebar/Sidebar";
+import Footer from "../Footer/Footer";
+import "./Layout.css";
+
+const Layout = ({ children }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [adminName] = useState("Admin");
+
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  return (
+    <div className="app-container">
+      <Navbar 
+        sidebarOpen={sidebarOpen} 
+        toggleSidebar={toggleSidebar} 
+        adminName={adminName} 
+      />
+      <Sidebar sidebarOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
+      <main className={`main-content ${sidebarOpen ? "main-content-shifted" : ""}`}>
+        {children}
+        <Footer />
+      </main>
+    </div>
+  );
+};
+
+export default Layout;
+
+
+
+
+/* Layout Container */
+.app-container {
+    min-height: 100vh;
+    background: #ffffff;
+    font-family: Arial, sans-serif;
+}
+
+/* Main Content */
+.main-content {
+    margin-left: 260px;
+    margin-top: 80px;
+    padding: 40px;
+    padding-bottom: 0;
+    transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: calc(100vh - 80px);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .main-content {
+        margin-left: 0;
+        margin-top: 70px;
+        padding: 24px 16px;
+        padding-bottom: 0;
+    }
+}
+
+
+
 import React, { useState, useEffect } from "react";
 import { Link} from "react-router-dom";
 import { useNavigate } from "react-router-dom";
@@ -101,8 +369,6 @@ const Login = () => {
 };
 
 export default Login;
-
-
 
 
 .login-container {
@@ -420,3 +686,144 @@ export default Login;
 .social-btn:last-child {
     animation-delay: 1.4s;
 }
+
+
+
+import React from 'react';
+import { Menu, X, User, LogOut } from 'lucide-react';
+import './Navbar.css';
+import { useNavigate } from 'react-router-dom';
+
+const Navbar = ({ sidebarOpen, toggleSidebar, adminName }) => {
+  const navigate = useNavigate();
+  return (
+    <nav className="dash-navbar">
+      <div className="dash-navbar-left">
+        <button className="dash-hamburger" onClick={toggleSidebar}>
+          {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+        <span className="dash-logo-text">NGOS</span>
+      </div>
+      <div className="dash-navbar-right">
+        <User className="dash-user-icon" size={20} />
+        <span className="dash-welcome-text">Welcome, {adminName}!</span>
+        <button className="dash-logout-btn" onClick={()=>{navigate("/login");}}>
+          <LogOut size={18} />
+          Logout
+        </button>
+      </div>
+    </nav>
+  );
+};
+
+export default Navbar;
+
+
+
+/* Navbar - White Style */
+.dash-navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 40px;
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.dash-navbar-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.dash-hamburger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #1f2937;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.dash-hamburger:hover {
+    background: #f3f4f6;
+}
+
+.dash-logo-text {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(to right, #111827, #4f46e5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.dash-navbar-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.dash-user-icon {
+    color: #6b7280;
+}
+
+.dash-welcome-text {
+    color: #4b5563;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Updated Logout Button with Modern Animations */
+.dash-logout-btn {
+    display: inline-block;
+    padding: 0.8rem 2rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, rgb(220, 38, 38), rgb(190, 48, 48));
+    border: none;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeInScale 0.8s ease-out 0.6s backwards, pulseGlow 3s ease-in-out infinite;
+}
+
+.dash-logout-btn:hover {
+    transform: translateY(-3px);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .dash-navbar {
+        padding: 0 20px;
+        height: 70px;
+    }
+
+    .dash-hamburger {
+        display: flex;
+    }
+
+    .dash-welcome-text {
+        display: none;
+    }
+}
+
+
+              
