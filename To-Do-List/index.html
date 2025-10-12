@@ -26,3 +26,919 @@
 
 </html>
 
+
+
+
+
+
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import "./Login.css";
+
+const Login = () => {
+  const navigate = useNavigate();
+  const [animate, setAnimate] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertType, setAlertType] = useState("error");
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({
+    email: "",
+    password: "",
+    firstname: "",
+    lastname: ""
+  });
+  const [formData, setFormData] = useState({
+    firstname: "",
+    lastname: "",
+    email: "",
+    password: ""
+  });
+
+  useEffect(() => {
+    setAnimate(true);
+  }, []);
+
+  const showAlertMessage = (message, type = "error") => {
+    setAlertMessage(message);
+    setAlertType(type);
+    setShowAlert(true);
+    setTimeout(() => {
+      setShowAlert(false);
+    }, 3000);
+  };
+
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value
+    });
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors({
+        ...errors,
+        [name]: ""
+      });
+    }
+  };
+
+  // Login Function
+  const handleLogin = (e) => {
+    e.preventDefault();
+    
+    const { email, password } = formData;
+    let newErrors = {};
+    
+    // Validation
+    if (!validateEmail(email)) {
+      newErrors.email = "Invalid email";
+    }
+    
+    if (password.length < 6) {
+      newErrors.password = "Invalid password";
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    
+    // Start loading immediately
+    setLoading(true);
+    
+    setTimeout(() => {
+      if (email === "user@example.com" && password === "123456") {
+        showAlertMessage("Login successful!", "success");
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 1000);
+      } else {
+        setLoading(false);
+        setErrors({
+          email: "Invalid email",
+          password: "Invalid password"
+        });
+        showAlertMessage("Invalid credentials");
+      }
+    }, 1500);
+  };
+
+  // Signup Function
+  const handleSignup = (e) => {
+    e.preventDefault();
+    
+    const { firstname, lastname, email, password } = formData;
+    let newErrors = {};
+    
+    // Validation
+    if (!firstname.trim()) {
+      newErrors.firstname = "Required";
+    }
+    
+    if (!lastname.trim()) {
+      newErrors.lastname = "Required";
+    }
+    
+    if (!validateEmail(email)) {
+      newErrors.email = "Invalid email";
+    }
+    
+    if (password.length < 6) {
+      newErrors.password = "Invalid password";
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    
+    // Start loading immediately
+    setLoading(true);
+    
+    // Simulate API call delay
+    setTimeout(() => {
+      console.log("Signup data:", { firstname, lastname, email, password });
+      showAlertMessage("Account created successfully!", "success");
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 1000);
+    }, 1500);
+  };
+
+  // Toggle between login and signup
+  const toggleMode = () => {
+    setIsSignup(!isSignup);
+    setFormData({
+      firstname: "",
+      lastname: "",
+      email: "",
+      password: ""
+    });
+    setErrors({
+      email: "",
+      password: "",
+      firstname: "",
+      lastname: ""
+    });
+    setLoading(false);
+  };
+
+  return (
+    <div className="login-container">
+      <a href="/" className="back-home">← Back to Home</a>
+
+      {/* Alert notification */}
+      {showAlert && (
+        <div className={`alert-notification ${alertType} ${showAlert ? 'show' : ''}`}>
+          {alertMessage}
+        </div>
+      )}
+
+      <div className={`login-left ${animate ? "slide-left" : ""}`}>
+        <h1 className="logos">NGOS</h1>
+        <p>Effortless credit card management starts here. Secure, fast, reliable.</p>
+      </div>
+
+      <div className={`login-right ${animate ? "slide-right" : ""}`}>
+        <h2>Welcome Back</h2>
+        <p>{isSignup ? "Sign up to continue" : "Sign in to continue"}</p>
+        
+        <form 
+          onSubmit={isSignup ? handleSignup : handleLogin} 
+          className="login-form" 
+          key={isSignup ? 'signup' : 'login'} noValidate
+        >
+          {isSignup && (
+            <div className="form-row">
+              <div className="input-wrapper">
+                <input
+                  type="text"
+                  name="firstname"
+                  placeholder="First Name"
+                  value={formData.firstname}
+                  onChange={handleChange}
+                  className={errors.firstname ? "error" : ""}
+                  required
+                />
+                {errors.firstname && <span className="error-message">{errors.firstname}</span>}
+              </div>
+              <div className="input-wrapper">
+                <input
+                  type="text"
+                  name="lastname"
+                  placeholder="Last Name"
+                  value={formData.lastname}
+                  onChange={handleChange}
+                  className={errors.lastname ? "error" : ""}
+                  required
+                />
+                {errors.lastname && <span className="error-message">{errors.lastname}</span>}
+              </div>
+            </div>
+          )}
+          
+          <div className="input-wrapper">
+            <input
+              type="email"
+              name="email"
+              placeholder="Email address"
+              value={formData.email}
+              onChange={handleChange}
+              className={errors.email ? "error" : ""}
+              required
+            />
+            {errors.email && <span className="error-message">{errors.email}</span>}
+          </div>
+          
+          <div className="input-wrapper">
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={formData.password}
+              onChange={handleChange}
+              className={errors.password ? "error" : ""}
+              required
+            />
+            {errors.password && <span className="error-message">{errors.password}</span>}
+          </div>
+          
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? (
+              <span className="btn-loading">
+                <span className="spinner"></span>
+                {isSignup ? "Creating Account..." : "Logging in..."}
+              </span>
+            ) : (
+              isSignup ? "Signup" : "Login"
+            )}
+          </button>
+          
+          <p className="signup-link">
+            {isSignup ? "Already have an account? " : "Don't have an account? "}
+           <button type="button" className="toggle-link" onClick={toggleMode}>
+  {isSignup ? "Login" : "Signup"}
+</button>
+          </p>
+        </form>
+        
+        {!isSignup && (
+          <div className="social-login">
+            <button className="social-btn google">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                <path d="M9.003 18c2.43 0 4.467-.806 5.956-2.18L12.05 13.56c-.806.54-1.836.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.96v2.332C2.44 15.983 5.485 18 9.003 18z" fill="#34A853"/>
+                <path d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.71 0-.593.102-1.17.282-1.71V4.96H.957C.347 6.175 0 7.55 0 9.002c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                <path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.426 0 9.003 0 5.485 0 2.44 2.017.96 4.958L3.967 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/>
+              </svg>
+              Login with Google
+            </button>
+            <button className="social-btn outlook">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="white">
+                <path d="M9 0L0 3v12l9 3 9-3V3L9 0zm0 2.5L15.5 5 9 7.5 2.5 5 9 2.5zM1.5 6.5L8 9v7.5l-6.5-2.5V6.5zm7 9V9l6.5-2.5V14l-6.5 2.5z"/>
+              </svg>
+              Login with Outlook
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Login;
+
+
+
+
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.login-container {
+    display: flex;
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+    position: relative;
+}
+
+.back-home {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    text-decoration: none;
+    color: #000000;
+    font-weight: 500;
+    z-index: 10;
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    transition: color 0.3s ease;
+    cursor: pointer;
+}
+
+.back-home:hover {
+    color: #4f46e5;
+}
+
+/* Alert notification */
+.alert-notification {
+    position: fixed;
+    top: 1.5rem;
+    right: -350px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #1f2937;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    z-index: 1000;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    min-width: 260px;
+    max-width: 300px;
+    text-align: left;
+    backdrop-filter: blur(20px);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.alert-notification::before {
+    content: '';
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.alert-notification.error::before {
+    content: '✕';
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+    color: #dc2626;
+}
+
+.alert-notification.success::before {
+    content: '✓';
+    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+    color: #059669;
+}
+
+.alert-notification.show {
+    right: 1.5rem;
+    animation: slideInBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.alert-notification.success {
+    background: rgba(255, 255, 255, 0.95);
+    color: #1f2937;
+}
+
+.alert-notification.error {
+    background: rgba(255, 255, 255, 0.95);
+    color: #1f2937;
+}
+
+@keyframes slideInBounce {
+    0% {
+        right: -350px;
+        opacity: 0;
+        transform: translateX(50px) rotate(10deg);
+    }
+
+    50% {
+        right: 1.2rem;
+        transform: translateX(-15px) rotate(-5deg);
+    }
+
+    70% {
+        right: 1.8rem;
+        transform: translateX(8px) rotate(2deg);
+    }
+
+    85% {
+        right: 1.4rem;
+        transform: translateX(-3px) rotate(-1deg);
+    }
+
+    100% {
+        right: 1.5rem;
+        opacity: 1;
+        transform: translateX(0) rotate(0);
+    }
+}
+.login-left {
+    flex: 2;
+    background: linear-gradient(135deg, #007b8f, #00434e);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4rem 3rem;
+    transform: translateX(-100%);
+    opacity: 0;
+    transition: all 1s ease;
+}
+
+.login-left.slide-left {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.login-left .logo {
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    color: #ffffff !important;
+    position: relative;
+    display: inline-block;
+    z-index: 100;
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3);
+    letter-spacing: 2px;
+    opacity: 1 !important;
+}
+
+.login-left p {
+    font-size: 1.2rem;
+    line-height: 1.6;
+}
+
+.login-right {
+    flex: 1;
+    background: white;
+    border-top-left-radius: 50px;
+    border-bottom-left-radius: 50px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4rem 3rem;
+    text-align: center;
+    transform: translateX(100%);
+    opacity: 0;
+    transition: all 1s ease 0.3s;
+}
+
+.login-right.slide-right {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.login-right h2 {
+    font-size: 2rem;
+    color: #007b8f;
+    margin-bottom: 0.5rem;
+}
+
+.login-right p {
+    color: #007b8f;
+    margin-bottom: 2rem;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    animation: slideInFromRight 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideInFromRight {
+    from {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.input-wrapper {
+    width: 100%;
+    position: relative;
+    animation: inputSlideIn 0.5s ease;
+    animation-fill-mode: both;
+}
+
+@keyframes inputSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.input-wrapper:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.input-wrapper:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.input-wrapper:nth-child(3) {
+    animation-delay: 0.2s;
+}
+
+.input-wrapper:nth-child(4) {
+    animation-delay: 0.25s;
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+    animation: rowSlideIn 0.5s ease 0.1s;
+    animation-fill-mode: both;
+}
+
+@keyframes rowSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.form-row .input-wrapper {
+    flex: 1;
+}
+
+.login-form input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.login-form input:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 10px rgba(79, 70, 229, 0.3);
+}
+
+.login-form input.error {
+    border-color: #ef4444;
+}
+
+.login-form input.error:focus {
+    border-color: #ef4444;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.error-message {
+    display: block;
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    margin-left: 0.25rem;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.btn-primary {
+    padding: 0.8rem;
+    background: #007b8f;
+    color: white;
+    font-weight: 600;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background: #007b8f;
+    transform: scale(1.05) translateY(0);
+}
+
+.btn-primary:active {
+    transform: scale(0.98) translateY(0);
+}
+
+.btn-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.btn-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.social-login {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    width: 100%;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+    animation: socialSlideIn 0.6s ease 0.3s both;
+}
+
+@keyframes socialSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(40px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.social-btn {
+    width: 100%;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.7rem;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    color: white;
+    font-size: 1rem;
+}
+
+.social-btn.google {
+    background: #db4437;
+}
+
+.social-btn.google:hover {
+    background: #c33c2f;
+}
+
+.social-btn.outlook {
+    background: #0078d4;
+}
+
+.social-btn.outlook:hover {
+    background: #0064b3;
+}
+
+@keyframes fadeUpIn {
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.signup-link {
+    margin-top: 1rem;
+    font-size: 0.95rem;
+    color: #6b7280;
+    animation: linkSlideIn 0.5s ease 0.35s both;
+}
+
+@keyframes linkSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+.toggle-link {
+    background: none;
+    border: none;
+    color: #007bff;
+    cursor: pointer;
+    text-decoration: underline;
+    font-size: inherit;
+}
+
+.signup-link a {
+    color: #4f46e5;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.signup-link a:hover {
+    text-decoration: underline;
+}
+
+/* Animation delays - Only for page load */
+.login-left.slide-left {
+    animation: slideInLeft 1s ease forwards;
+}
+
+.login-right.slide-right {
+    animation: slideInRight 1s ease 0.3s forwards;
+}
+
+@keyframes slideInLeft {
+    from {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .login-left {
+        flex: 1.5;
+    }
+
+    .login-right {
+        flex: 1;
+    }
+}
+
+@media (max-width: 1024px) {
+    .login-container {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+    }
+
+    .login-left,
+    .login-right {
+        width: 100%;
+        padding: 3rem 2rem;
+    }
+
+    .login-left {
+        min-height: 40vh;
+    }
+
+    .login-right {
+        min-height: 60vh;
+    }
+
+    .social-login,
+    .login-form {
+        width: 100%;
+        max-width: 400px;
+        margin: 1.5rem auto 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .login-left .logo {
+        font-size: 3rem;
+    }
+
+    .login-left p {
+        font-size: 1.1rem;
+    }
+
+    .login-right h2 {
+        font-size: 1.8rem;
+    }
+
+    .form-row {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .form-row .input-wrapper {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+
+    .login-left,
+    .login-right {
+        padding: 2rem 1.5rem;
+    }
+
+    .login-left .logo {
+        font-size: 2.5rem;
+    }
+
+    .login-left p {
+        font-size: 1rem;
+    }
+
+    .login-form input,
+    .social-btn {
+        padding: 0.8rem;
+    }
+
+    .back-home {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-height: 700px) {
+    .login-left {
+        min-height: auto;
+        padding: 2rem;
+    }
+
+    .login-left .logo {
+        font-size: 2.2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .login-form {
+        gap: 0.8rem;
+    }
+}
+
+@media (max-height: 500px) {
+    .login-container {
+        flex-direction: row;
+    }
+
+    .login-left,
+    .login-right {
+        height: 100vh;
+        overflow-y: auto;
+    }
+}
+
