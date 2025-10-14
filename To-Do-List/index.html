@@ -28,345 +28,352 @@
 
 
 
+ import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import './UserStatus.css';
 
-
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import "./Login.css";
-
-const Login = () => {
+const UserStatus = () => {
   const navigate = useNavigate();
-  const [animate, setAnimate] = useState(false);
-  const [isSignup, setIsSignup] = useState(false);
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState("");
-  const [alertType, setAlertType] = useState("error");
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({
-    email: "",
-    password: "",
-    firstname: "",
-    lastname: "",
-    role: ""
-  });
-  const [formData, setFormData] = useState({
-    firstname: "",
-    lastname: "",
-    email: "",
-    password: "",
-    role: "user"
-  });
+  const [applicationData, setApplicationData] = useState(null);
+  const [currentStage, setCurrentStage] = useState(0);
+  const [rejectionInfo, setRejectionInfo] = useState(null);
+  const [canEdit, setCanEdit] = useState(false);
 
   useEffect(() => {
-    setAnimate(true);
+    loadApplicationStatus();
   }, []);
 
-  const showAlertMessage = (message, type = "error") => {
-    setAlertMessage(message);
-    setAlertType(type);
-    setShowAlert(true);
-    setTimeout(() => {
-      setShowAlert(false);
-    }, 3000);
-  };
-
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
-    
-    if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: ""
-      });
-    }
-  };
-
-  // Helper function to update role and trigger re-render
-  const updateUserRole = (role) => {
-    localStorage.setItem("userRole", role);
-    // Dispatch custom event to notify App.js
-    window.dispatchEvent(new Event('roleChange'));
-  };
-
-  // Login Function - FIXED
-  const handleLogin = (e) => {
-    e.preventDefault();
-    
-    const { email, password, role } = formData;
-    let newErrors = {};
-    
-    // Validation
-    if (!validateEmail(email)) {
-      newErrors.email = "Invalid email";
-    }
-    
-    if (password.length < 6) {
-      newErrors.password = "Invalid password";
-    }
-    
-    if (!role) {
-      newErrors.role = "Please select a role";
-    }
-    
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-    
-    setLoading(true);
-    
-    setTimeout(() => {
-      const validUsers = {
-        user: { email: "user@example.com", password: "123456" },
-        sales: { email: "sales@example.com", password: "123456" }
-      };
+  const loadApplicationStatus = () => {
+    const saved = localStorage.getItem('creditCardApplication');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setApplicationData(parsed);
       
-      if (validUsers[role] && email === validUsers[role].email && password === validUsers[role].password) {
-        // Store role and trigger re-render
-        updateUserRole(role);
+      const rejection = localStorage.getItem('applicationRejection');
+      if (rejection) {
+        const rejectionData = JSON.parse(rejection);
+        setRejectionInfo(rejectionData);
+        setCurrentStage(rejectionData.stage);
         
-        showAlertMessage(`Login successful as ${role === 'sales' ? 'Sales User' : 'User'}!`, "success");
-
-        // Navigate after showing success message
-        setTimeout(() => {
-          if (role === "sales") {
-            navigate("/dashboard", { replace: true }); 
-          } else if (role === "user") {
-            navigate("/user-dashboard", { replace: true });
-          }
-        }, 1000);
+        // Can only edit if rejected at stage 2 (Document Verification)
+        setCanEdit(rejectionData.stage === 2);
       } else {
-        setLoading(false);
-        setErrors({
-          email: "Invalid email",
-          password: "Invalid password"
-        });
-        showAlertMessage("Invalid credentials for selected role");
+        // Animate through stages one by one if not rejected
+        setTimeout(() => setCurrentStage(1), 300);
+        setTimeout(() => {
+          setCurrentStage(2);
+          // Enable edit at stage 2 (Document Verification) only if not rejected
+          setCanEdit(true);
+        }, 1200);
+        setTimeout(() => {
+          setCurrentStage(3);
+          setCanEdit(false); // Disable edit once reaches stage 3
+          
+          // Mark application as approved and save to history
+          const approvedApp = {
+            ...parsed,
+            status: 'approved',
+            completedAt: new Date().toISOString()
+          };
+          localStorage.setItem('creditCardApplication', JSON.stringify(approvedApp));
+          
+          // Add to history
+          const allApps = JSON.parse(localStorage.getItem('allApplications') || '[]');
+          const existingIndex = allApps.findIndex(app => app.id === approvedApp.id);
+          if (existingIndex >= 0) {
+            allApps[existingIndex] = approvedApp;
+          } else {
+            allApps.unshift(approvedApp);
+          }
+          localStorage.setItem('allApplications', JSON.stringify(allApps));
+        }, 2100);
       }
-    }, 1500);
+    }
   };
 
-  // Signup Function - FIXED
-  const handleSignup = (e) => {
-    e.preventDefault();
-    
-    const { firstname, lastname, email, password } = formData;
-    let newErrors = {};
-    
-    if (!firstname.trim()) {
-      newErrors.firstname = "Required";
+  const stages = [
+    {
+      id: 1,
+      title: 'Application Submitted',
+      description: 'Your application has been received successfully'
+    },
+    {
+      id: 2,
+      title: 'Document Verification',
+      description: 'All documents have been verified'
+    },
+    {
+      id: 3,
+      title: 'Offer Confirmation',
+      description: 'Your credit card has been approved'
     }
-    
-    if (!lastname.trim()) {
-      newErrors.lastname = "Required";
-    }
-    
-    if (!validateEmail(email)) {
-      newErrors.email = "Invalid email";
-    }
-    
-    if (password.length < 6) {
-      newErrors.password = "Invalid password";
-    }
-    
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+  ];
+
+  const handleEditApplication = () => {
+    if (!canEdit) {
       return;
     }
-    
-    setLoading(true);
-    
-    setTimeout(() => {
-      // Store role and trigger re-render
-      updateUserRole("user");
-      console.log("Signup data:", { firstname, lastname, email, password, role: "user" });
-      showAlertMessage("Account created successfully!", "success");
-      setTimeout(() => {
-        navigate("/user-dashboard", { replace: true });
-      }, 1000);
-    }, 1500);
+
+    // Clear rejection status when editing from Document Verification stage
+    if (rejectionInfo && rejectionInfo.stage === 2) {
+      localStorage.removeItem('applicationRejection');
+      
+      // Update application status in history
+      const allApps = JSON.parse(localStorage.getItem('allApplications') || '[]');
+      const appIndex = allApps.findIndex(app => app.id === applicationData.id);
+      if (appIndex >= 0) {
+        allApps[appIndex] = {
+          ...allApps[appIndex],
+          status: 'in-process',
+          rejectionReason: undefined
+        };
+        localStorage.setItem('allApplications', JSON.stringify(allApps));
+      }
+    }
+
+    // Navigate to application page with edit data
+    navigate('/application', {
+      state: {
+        editApplication: applicationData
+      }
+    });
   };
 
-  const toggleMode = () => {
-    setIsSignup(!isSignup);
-    setFormData({
-      firstname: "",
-      lastname: "",
-      email: "",
-      password: "",
-      role: "user"
-    });
-    setErrors({
-      email: "",
-      password: "",
-      firstname: "",
-      lastname: "",
-      role: ""
-    });
-    setLoading(false);
-  };
+  if (!applicationData) {
+    return (
+      <div className="status-container">
+        <div className="empty-state">
+          <div className="empty-icon">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#d4d4d4" strokeWidth="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <h2 className="empty-title">No Application Submitted</h2>
+          <p className="empty-description">
+            You haven't submitted any credit card application yet. 
+            Please complete and submit your application to track its status.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="login-container">
-      <a href="" className="back-home">← Back to Home</a>
-
-      {showAlert && (
-        <div className={`alert-notification ${alertType} ${showAlert ? 'show' : ''}`}>
-          {alertMessage}
-        </div>
-      )}
-
-      <div className={`login-left ${animate ? "slide-left" : ""}`}>
-        <h1 className="logos">Standard Chartered</h1>
-        <p>Effortless credit card management starts here. Secure, fast, reliable.</p>
+    <div className="status-container">
+      <div className="status-header">
+        <h1 className="status-title">Application Status</h1>
+        <p className="status-subtitle">Track your credit card application progress</p>
       </div>
 
-      <div className={`login-right ${animate ? "slide-right" : ""}`}>
-        <h2>Welcome Back</h2>
-        <p>{isSignup ? "Sign up to continue" : "Sign in to continue"}</p>
-        
-        <form 
-          onSubmit={isSignup ? handleSignup : handleLogin} 
-          className="login-form" 
-          key={isSignup ? 'signup' : 'login'} 
-          noValidate
-        >
-          {isSignup && (
-            <div className="form-row">
-              <div className="input-wrapper">
-                <input
-                  type="text"
-                  name="firstname"
-                  placeholder="First Name"
-                  value={formData.firstname}
-                  onChange={handleChange}
-                  className={errors.firstname ? "error" : ""}
-                  required
-                />
-                {errors.firstname && <span className="error-message">{errors.firstname}</span>}
-              </div>
-              <div className="input-wrapper">
-                <input
-                  type="text"
-                  name="lastname"
-                  placeholder="Last Name"
-                  value={formData.lastname}
-                  onChange={handleChange}
-                  className={errors.lastname ? "error" : ""}
-                  required
-                />
-                {errors.lastname && <span className="error-message">{errors.lastname}</span>}
-              </div>
-            </div>
-          )}
-          
-          <div className="input-wrapper">
-            <input
-              type="email"
-              name="email"
-              placeholder="Email address"
-              value={formData.email}
-              onChange={handleChange}
-              className={errors.email ? "error" : ""}
-              required
-            />
-            {errors.email && <span className="error-message">{errors.email}</span>}
-          </div>
-          
-          <div className="input-wrapper">
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={handleChange}
-              className={errors.password ? "error" : ""}
-              required
-            />
-            {errors.password && <span className="error-message">{errors.password}</span>}
-          </div>
+      <div className="status-card">
+        {/* Progress Timeline - Horizontal */}
+        <div className="progress-timeline">
+          {stages.map((stage, index) => {
+            const isCompleted = currentStage > stage.id;
+            const isCurrent = currentStage === stage.id;
+            const isRejected = rejectionInfo && rejectionInfo.stage === stage.id;
 
-          {!isSignup && (
-            <div className="input-wrapper">
-              <div className="role-label">Select Role</div>
-              <div className="role-selector">
-                <div
-                  className={`role-option ${formData.role === 'user' ? 'selected' : ''} ${errors.role ? 'error' : ''}`}
-                  onClick={() => {
-                    setFormData(prev => ({ ...prev, role: 'user' }));
-                    setErrors(prev => ({ ...prev, role: '' }));
-                  }}
-                >
-                  User
+            return (
+              <React.Fragment key={stage.id}>
+                <div className="progress-step">
+                  <div className={`progress-circle ${
+                    isRejected ? 'rejected' : 
+                    isCompleted ? 'completed' : 
+                    isCurrent ? 'current' : 'pending'
+                  }`}>
+                    {isRejected ? (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    ) : isCompleted ? (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <span className="progress-number">{stage.id}</span>
+                    )}
+                  </div>
+                  <div className="progress-label">
+                    <h4 className={`progress-title ${
+                      isRejected ? 'rejected-text' :
+                      (isCompleted || isCurrent) ? 'active' : ''
+                    }`}>
+                      {stage.title}
+                    </h4>
+                    <p className={`progress-desc ${
+                      isRejected ? 'rejected-text' :
+                      (isCompleted || isCurrent) ? 'active' : ''
+                    }`}>
+                      {isRejected ? 'Verification Failed' : stage.description}
+                    </p>
+                  </div>
                 </div>
-                <div
-                  className={`role-option ${formData.role === 'sales' ? 'selected' : ''} ${errors.role ? 'error' : ''}`}
-                  onClick={() => {
-                    setFormData(prev => ({ ...prev, role: 'sales' }));
-                    setErrors(prev => ({ ...prev, role: '' }));
-                  }}
-                >
-                  Sales User
-                </div>
+                
+                {index < stages.length - 1 && (
+                  <div className={`progress-line ${
+                    isRejected ? 'rejected' :
+                    currentStage > stage.id ? 'completed' : 'pending'
+                  }`}></div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        {/* Edit Button - Shows at Document Verification stage (stage 2) when not rejected */}
+        {currentStage === 2 && !rejectionInfo && (
+          <div className="edit-section">
+            <div className="edit-info-box">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <div className="edit-info-content">
+                <h4 className="edit-info-title">Document Verification in Progress</h4>
+                <p className="edit-info-text">
+                  Your documents are currently being verified. If you need to update any information or upload better quality documents, you can edit your application.
+                </p>
               </div>
-              {errors.role && <span className="error-message">{errors.role}</span>}
             </div>
-          )}
-          
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? (
-              <span className="btn-loading">
-                <span className="spinner"></span>
-                {isSignup ? "Creating Account..." : "Logging in..."}
-              </span>
-            ) : (
-              isSignup ? "Signup" : "Login"
-            )}
-          </button>
-          
-          <p className="signup-link">
-            {isSignup ? "Already have an account? " : "Don't have an account? "}
-            <button type="button" className="toggle-link" onClick={toggleMode}>
-              {isSignup ? "Login" : "Signup"}
-            </button>
-          </p>
-        </form>
-        
-        {!isSignup && (
-          <div className="social-login">
-            <button className="social-btn google">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
-                <path d="M9.003 18c2.43 0 4.467-.806 5.956-2.18L12.05 13.56c-.806.54-1.836.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.96v2.332C2.44 15.983 5.485 18 9.003 18z" fill="#34A853"/>
-                <path d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.71 0-.593.102-1.17.282-1.71V4.96H.957C.347 6.175 0 7.55 0 9.002c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-                <path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.426 0 9.003 0 5.485 0 2.44 2.017.96 4.958L3.967 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/>
+            <button className="edit-stage-btn" onClick={handleEditApplication}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
               </svg>
-              Login with Google
-            </button>
-            <button className="social-btn outlook">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="white">
-                <path d="M9 0L0 3v12l9 3 9-3V3L9 0zm0 2.5L15.5 5 9 7.5 2.5 5 9 2.5zM1.5 6.5L8 9v7.5l-6.5-2.5V6.5zm7 9V9l6.5-2.5V14l-6.5 2.5z"/>
-              </svg>
-              Login with Outlook
+              Edit Application
             </button>
           </div>
         )}
+
+        {/* Rejection Alert - Only for Document Verification (stage 2) */}
+        {rejectionInfo && rejectionInfo.stage === 2 && (
+          <div className="rejection-alert">
+            <div className="rejection-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div className="rejection-content">
+              <h3 className="rejection-title">Application Rejected</h3>
+              <p className="rejection-stage">
+                Rejected at: <strong>{stages[rejectionInfo.stage - 1]?.title}</strong>
+              </p>
+              <div className="rejection-reason">
+                <strong>Reason:</strong> {rejectionInfo.reason}
+              </div>
+              <button className="edit-application-btn" onClick={handleEditApplication}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Edit & Resubmit Application
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Rejection Alert - For Offer Confirmation (stage 3) - No Edit Option */}
+        {rejectionInfo && rejectionInfo.stage === 3 && (
+          <div className="rejection-alert final-rejection">
+            <div className="rejection-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div className="rejection-content">
+              <h3 className="rejection-title">Application Rejected</h3>
+              <p className="rejection-stage">
+                Rejected at: <strong>{stages[rejectionInfo.stage - 1]?.title}</strong>
+              </p>
+              <div className="rejection-reason">
+                <strong>Reason:</strong> {rejectionInfo.reason}
+              </div>
+              <div className="final-rejection-note">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <p>This application cannot be edited. Please submit a new application if you wish to reapply.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Application Details */}
+        <div className="applicant-info">
+          <h3 className="info-section-title">Application Details</h3>
+          <div className="info-grid">
+            <div className="info-item">
+              <span className="info-label">Applicant Name</span>
+              <span className="info-value">
+                {applicationData.firstName} {applicationData.lastName}
+              </span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Application ID</span>
+              <span className="info-value">
+                #{applicationData.submittedAt.slice(0, 10).replace(/[-]/g, '')}
+              </span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Email Address</span>
+              <span className="info-value">{applicationData.email}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Contact Number</span>
+              <span className="info-value">{applicationData.contactNumber}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Card Type</span>
+              <span className="info-badge">{applicationData.cardType}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Submitted On</span>
+              <span className="info-value">
+                {new Date(applicationData.submittedAt).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric'
+                })}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Success Message - Shows when all stages completed and NOT rejected */}
+        {currentStage === 3 && !rejectionInfo && (
+          <div className="success-banner">
+            <div className="success-icon-wrapper">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+            <div className="success-content">
+              <h3 className="success-title">🎉 Congratulations! Your Application is Approved</h3>
+              <p className="success-text">
+                Your credit card has been approved and will be delivered to your registered address within 5-7 business days.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
+
+     
     </div>
   );
 };
 
-export default Login;
-
+export default UserStatus;
 
 
 
@@ -377,209 +384,862 @@ export default Login;
     box-sizing: border-box;
 }
 
-body {
-    margin: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+.status-container {
+    min-height: 100vh;
+    background: #ffffff;
+    padding: 40px 20px;
 }
 
-.login-container {
+.status-header {
+    text-align: center;
+    margin-bottom: 50px;
+    padding-top: 20px;
+}
+
+.status-title {
+    font-size: 36px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+}
+
+.status-subtitle {
+    color: #666666;
+    font-size: 16px;
+}
+
+/* Empty State */
+.empty-state {
+    max-width: 500px;
+    margin: 100px auto;
+    text-align: center;
+    padding: 60px 40px;
+}
+
+.empty-icon {
+    margin-bottom: 24px;
+}
+
+.empty-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 12px;
+}
+
+.empty-description {
+    color: #666666;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+/* Status Card */
+.status-card {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+/* Horizontal Progress Timeline */
+.progress-timeline {
     display: flex;
-    min-height: 100vh;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    overflow: hidden;
+    align-items: flex-start;
+    justify-content: space-between;
+    background: #fafafa;
+    border-radius: 12px;
+    padding: 50px 40px;
+    border: 1px solid #e5e5e5;
+    margin-bottom: 40px;
+}
+
+.progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
     position: relative;
 }
 
-.back-home {
-    position: absolute;
-    top: 1rem;
-    right: 1.5rem;
-    text-decoration: none;
-    color: #000000;
-    font-weight: 500;
-    z-index: 10;
-    background: none;
-    padding: 0;
-    border-radius: 0;
-    transition: color 0.3s ease;
-    cursor: pointer;
-}
-
-.back-home:hover {
-    color: #4f46e5;
-}
-
-/* Alert notification */
-.alert-notification {
-    position: fixed;
-    top: 1.5rem;
-    right: -350px;
-    background: rgba(255, 255, 255, 0.95);
-    color: #1f2937;
-    padding: 0.75rem 1rem;
-    border-radius: 12px;
-    font-weight: 600;
-    font-size: 0.875rem;
-    z-index: 1000;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
-    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-    min-width: 260px;
-    max-width: 300px;
-    text-align: left;
-    backdrop-filter: blur(20px);
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.5);
-}
-
-.alert-notification::before {
-    content: '';
-    width: 32px;
-    height: 32px;
+.progress-circle {
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
-    font-weight: bold;
-    flex-shrink: 0;
+    margin-bottom: 16px;
+    transition: all 0.4s ease;
+    z-index: 2;
 }
 
-.alert-notification.error::before {
-    content: '✕';
-    background: linear-gradient(135deg, #fee2e2, #fecaca);
-    color: #dc2626;
+.progress-circle.completed {
+    background: #16a34a;
+    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.3);
+    animation: checkmarkPop 0.4s ease-out;
 }
 
-.alert-notification.success::before {
-    content: '✓';
-    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-    color: #059669;
+.progress-circle.current {
+    background: #000000;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
-.alert-notification.show {
-    right: 1.5rem;
-    animation: slideInBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+.progress-circle.rejected {
+    background: #dc2626;
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
+    animation: shakePulse 0.5s ease-out;
 }
 
-.alert-notification.success {
-    background: rgba(255, 255, 255, 0.95);
-    color: #1f2937;
-}
-
-.alert-notification.error {
-    background: rgba(255, 255, 255, 0.95);
-    color: #1f2937;
-}
-
-@keyframes slideInBounce {
+@keyframes checkmarkPop {
     0% {
-        right: -350px;
+        transform: scale(0.8);
         opacity: 0;
-        transform: translateX(50px) rotate(10deg);
     }
 
     50% {
-        right: 1.2rem;
-        transform: translateX(-15px) rotate(-5deg);
-    }
-
-    70% {
-        right: 1.8rem;
-        transform: translateX(8px) rotate(2deg);
-    }
-
-    85% {
-        right: 1.4rem;
-        transform: translateX(-3px) rotate(-1deg);
+        transform: scale(1.1);
     }
 
     100% {
-        right: 1.5rem;
+        transform: scale(1);
         opacity: 1;
-        transform: translateX(0) rotate(0);
     }
 }
 
-.login-left {
-    flex: 2;
-    background: linear-gradient(135deg, #007b8f, #00434e);
+@keyframes shakePulse {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-5px);
+    }
+
+    75% {
+        transform: translateX(5px);
+    }
+}
+
+.progress-circle.pending {
+    background: #f5f5f5;
+    border: 3px solid #e5e5e5;
+}
+
+.progress-number {
+    font-size: 20px;
+    font-weight: 700;
+    color: #a3a3a3;
+}
+
+.progress-label {
+    text-align: center;
+    max-width: 200px;
+}
+
+.progress-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #a3a3a3;
+    margin-bottom: 6px;
+    transition: color 0.3s ease;
+}
+
+.progress-title.active {
+    color: #1a1a1a;
+}
+
+.progress-title.rejected-text {
+    color: #dc2626;
+}
+
+.progress-desc {
+    font-size: 13px;
+    color: #d4d4d4;
+    line-height: 1.4;
+    transition: color 0.3s ease;
+}
+
+.progress-desc.active {
+    color: #666666;
+}
+
+.progress-desc.rejected-text {
+    color: #dc2626;
+    font-weight: 500;
+}
+
+/* Progress Line */
+.progress-line {
+    flex: 1;
+    height: 4px;
+    align-self: flex-start;
+    margin-top: 28px;
+    margin-left: -8px;
+    margin-right: -8px;
+    border-radius: 2px;
+    transition: all 0.4s ease;
+}
+
+.progress-line.completed {
+    background: #16a34a;
+    animation: lineGrow 0.6s ease-out;
+}
+
+.progress-line.rejected {
+    background: #fca5a5;
+}
+
+@keyframes lineGrow {
+    0% {
+        transform: scaleX(0);
+        transform-origin: left;
+    }
+
+    100% {
+        transform: scaleX(1);
+        transform-origin: left;
+    }
+}
+
+.progress-line.pending {
+    background: #e5e5e5;
+}
+
+/* Edit Section - Shows at Document Verification Stage */
+.edit-section {
+    background: #fffbeb;
+    border: 2px solid #fde68a;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+}
+
+.edit-info-box {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    flex: 1;
+}
+
+.edit-info-box svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.edit-info-content {
+    flex: 1;
+}
+
+.edit-info-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #92400e;
+    margin-bottom: 6px;
+}
+
+.edit-info-text {
+    font-size: 14px;
+    color: #b45309;
+    line-height: 1.5;
+}
+
+.edit-stage-btn {
+    padding: 12px 24px;
+    background: #f59e0b;
     color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.edit-stage-btn:hover {
+    background: #d97706;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.edit-stage-btn:active {
+    transform: translateY(0);
+}
+
+/* Rejection Alert */
+.rejection-alert {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    border: 2px solid #fca5a5;
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.1);
+}
+
+.rejection-icon {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    background: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+}
+
+.rejection-content {
+    flex: 1;
+}
+
+.rejection-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #991b1b;
+    margin-bottom: 8px;
+}
+
+.rejection-stage {
+    font-size: 14px;
+    color: #b91c1c;
+    margin-bottom: 12px;
+}
+
+.rejection-reason {
+    font-size: 15px;
+    color: #dc2626;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #ffffff;
+    border-radius: 8px;
+    border-left: 4px solid #dc2626;
+}
+
+.edit-application-btn {
+    padding: 12px 24px;
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.edit-application-btn:hover {
+    background: #b91c1c;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.edit-application-btn:active {
+    transform: translateY(0);
+}
+
+/* Final Rejection (Stage 3) - No Edit Option */
+.rejection-alert.final-rejection {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+}
+
+.final-rejection-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: #ffffff;
+    border-radius: 8px;
+    border-left: 4px solid #991b1b;
+}
+
+.final-rejection-note svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.final-rejection-note p {
+    font-size: 14px;
+    color: #991b1b;
+    line-height: 1.6;
+    font-weight: 500;
+}
+
+/* Application Info */
+.applicant-info {
+    background: #fafafa;
+    border-radius: 12px;
+    padding: 32px;
+    border: 1px solid #e5e5e5;
+    margin-bottom: 24px;
+}
+
+.info-section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #e5e5e5;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+}
+
+.info-item {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    padding: 4rem 3rem;
-    transform: translateX(-100%);
-    opacity: 0;
-    transition: all 1s ease;
+    gap: 8px;
 }
 
-.login-left.slide-left {
-    transform: translateX(0);
-    opacity: 1;
+.info-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #666666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.login-left .logos {
-    font-size: 3.5rem;
-    font-weight: 800;
-    margin-bottom: 1rem;
-    color: #ffffff !important;
-    position: relative;
+.info-value {
+    font-size: 16px;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+.info-badge {
     display: inline-block;
-    z-index: 100;
-    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3);
-    letter-spacing: 2px;
-    opacity: 1 !important;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    background: #ffffff;
+    padding: 8px 16px;
+    border-radius: 8px;
+    text-transform: capitalize;
+    border: 2px solid #e5e5e5;
+    width: fit-content;
 }
 
-.login-left p {
-    font-size: 1.2rem;
+/* Success Banner */
+.success-banner {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 2px solid #86efac;
+    border-radius: 12px;
+    padding: 32px;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.1);
+}
+
+.success-icon-wrapper {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    background: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
+}
+
+.success-content {
+    flex: 1;
+}
+
+.success-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #166534;
+    margin-bottom: 8px;
+}
+
+.success-text {
+    font-size: 15px;
+    color: #15803d;
     line-height: 1.6;
 }
 
-.login-right {
-    flex: 1;
-    background: white;
-    border-top-left-radius: 50px;
-    border-bottom-left-radius: 50px;
+/* Test Controls */
+.test-controls {
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #f5f5f5;
+    border-radius: 8px;
+    border: 1px solid #e5e5e5;
+}
+
+.test-controls-title {
+    margin-bottom: 12px;
+    font-weight: 600;
+    color: #666666;
+    font-size: 14px;
+}
+
+.test-controls-buttons {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 4rem 3rem;
-    text-align: center;
-    transform: translateX(100%);
-    opacity: 0;
-    transition: all 1s ease 0.3s;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
-.login-right.slide-right {
-    transform: translateX(0);
-    opacity: 1;
+.test-btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    color: white;
 }
 
-.login-right h2 {
-    font-size: 2rem;
-    color: #007b8f;
-    margin-bottom: 0.5rem;
+.test-btn.reject-btn {
+    background: #dc2626;
 }
 
-.login-right p {
-    color: #007b8f;
-    margin-bottom: 2rem;
+.test-btn.reject-btn:hover {
+    background: #b91c1c;
+    transform: translateY(-1px);
 }
 
-.login-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    width: 100%;
-    max-width: 400px;
-    margin: 0 auto;
-    animation: slideInFromRight 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+.test-btn.approve-btn {
+    background: #16a34a;
 }
 
-@keyframes slideInFromRight {
+.test-btn.approve-btn:hover {
+    background: #15803d;
+    transform: translateY(-1px);
+}
+
+.test-btn:active {
+    transform: translateY(0);
+}
+
+/* Responsive Design */
+@media (max-width: 968px) {
+    .progress-timeline {
+        padding: 40px 24px;
+    }
+
+    .progress-circle {
+        width: 50px;
+        height: 50px;
+    }
+
+    .progress-title {
+        font-size: 14px;
+    }
+
+    .progress-desc {
+        font-size: 12px;
+    }
+
+    .progress-line {
+        margin-top: 23px;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .edit-section {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .edit-stage-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .status-container {
+        padding: 20px 16px;
+    }
+
+    .status-header {
+        margin-bottom: 40px;
+    }
+
+    .status-title {
+        font-size: 28px;
+    }
+
+    .progress-timeline {
+        flex-direction: column;
+        padding: 32px 24px;
+        gap: 32px;
+    }
+
+    .progress-step {
+        width: 100%;
+        flex-direction: row;
+        gap: 20px;
+        align-items: flex-start;
+    }
+
+    .progress-circle {
+        margin-bottom: 0;
+        flex-shrink: 0;
+    }
+
+    .progress-label {
+        text-align: left;
+        max-width: 100%;
+    }
+
+    .progress-line {
+        display: none;
+    }
+
+    /* Vertical connector for mobile */
+    .progress-step::after {
+        content: '';
+        position: absolute;
+        left: 30px;
+        top: 70px;
+        width: 3px;
+        height: calc(100% + 12px);
+        background: #e5e5e5;
+    }
+
+    .progress-step:last-child::after {
+        display: none;
+    }
+
+    .applicant-info {
+        padding: 24px 20px;
+    }
+
+    .info-section-title {
+        font-size: 18px;
+    }
+
+    .edit-section {
+        padding: 20px;
+    }
+
+    .edit-info-title {
+        font-size: 15px;
+    }
+
+    .edit-info-text {
+        font-size: 13px;
+    }
+
+    .success-banner {
+        flex-direction: column;
+        padding: 24px;
+        text-align: center;
+    }
+
+    .rejection-alert {
+        flex-direction: column;
+        padding: 24px;
+        align-items: center;
+        text-align: center;
+    }
+
+    .rejection-content {
+        width: 100%;
+    }
+
+    .edit-application-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .final-rejection-note {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .success-title {
+        font-size: 18px;
+    }
+
+    .success-text {
+        font-size: 14px;
+    }
+
+    .empty-state {
+        padding: 40px 20px;
+    }
+
+    .empty-title {
+        font-size: 20px;
+    }
+
+    .empty-description {
+        font-size: 14px;
+    }
+
+    .test-controls {
+        padding: 16px;
+    }
+
+    .test-controls-buttons {
+        flex-direction: column;
+    }
+
+    .test-btn {
+        width: 100%;
+    }
+}
+
+
+
+
+
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import "./UserDashboard.css";
+import "@fortawesome/fontawesome-free/css/all.min.css";
+
+const UserDashboard = () => {
+  const [isVisible, setIsVisible] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    setIsVisible(true);
+  }, []);
+
+  const features = [
+    { icon: "fa-credit-card", title: "Apply for Credit Cards", text: "Explore available credit cards and apply for the one that fits your needs.", color: "blue" },
+    { icon: "fa-lock", title: "Upload Documents", text: "Securely upload your ID, address proof, and income documents for verification.", color: "green" },
+    { icon: "fa-bolt", title: "Check Eligibility", text: "Instantly see which credit cards you qualify for based on your profile.", color: "purple" },
+    { icon: "fa-bell", title: "Track Your Applications", text: "Receive real-time updates and notifications about your application status.", color: "yellow" },
+  ];
+
+  return (
+    <div className="user-dashboard-wrapper">
+      <main className="user-dashboard-main-content">
+        {/* Hero Section */}
+        <div className={`user-dashboard-hero ${isVisible ? "visible" : ""}`}>
+          <h1>
+            Welcome to Your Dashboard
+            <br />
+            <span className="user-dashboard-gradient-text">Credit Card Applications</span>
+          </h1>
+          <p>
+            Apply for credit cards, upload documents, check your eligibility, and track the status of your applications—all from one convenient dashboard.
+          </p>
+          <button 
+            onClick={() => navigate("/apply")} 
+            className="user-dashboard-btn-shine"
+          >
+            Apply Now
+          </button>
+        </div>
+
+        {/* Features Section */}
+        <div className="user-dashboard-features-grid">
+          {features.map((f, i) => (
+            <div key={i} className="user-dashboard-feature-card">
+              <div className={`user-dashboard-feature-icon ${f.color}`}>
+                <i className={`fas ${f.icon}`}></i>
+              </div>
+              <h3>{f.title}</h3>
+              <p>{f.text}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Benefits Section */}
+        <div className="user-dashboard-more-info">
+          <h2>Why Use Our Platform?</h2>
+          <div className="user-dashboard-benefits-grid">
+            <div className="user-dashboard-benefit-item">
+              <div className="user-dashboard-benefit-icon">⚡</div>
+              <div className="user-dashboard-benefit-title">Fast & Simple</div>
+              <div className="user-dashboard-benefit-text">Complete your application in minutes with guided steps and instant validations.</div>
+            </div>
+            <div className="user-dashboard-benefit-item">
+              <div className="user-dashboard-benefit-icon">✓</div>
+              <div className="user-dashboard-benefit-title">Accurate</div>
+              <div className="user-dashboard-benefit-text">Built-in checks help prevent errors before submission.</div>
+            </div>
+            <div className="user-dashboard-benefit-item">
+              <div className="user-dashboard-benefit-icon">👁</div>
+              <div className="user-dashboard-benefit-title">Transparent</div>
+              <div className="user-dashboard-benefit-text">Track every step of your application with real-time updates.</div>
+            </div>
+            <div className="user-dashboard-benefit-item">
+              <div className="user-dashboard-benefit-icon">🔒</div>
+              <div className="user-dashboard-benefit-title">Secure</div>
+              <div className="user-dashboard-benefit-text">Your personal and financial data is encrypted and stored safely.</div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default UserDashboard;
+
+
+
+
+
+
+@keyframes userDashboardFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes userDashboardFadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes userDashboardSlideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes userDashboardSlideInRight {
     from {
         opacity: 0;
         transform: translateX(50px);
@@ -591,1838 +1251,317 @@ body {
     }
 }
 
-.input-wrapper {
-    width: 100%;
+@keyframes userDashboardFloat {
+
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+@keyframes userDashboardPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+.user-dashboard-wrapper {
     position: relative;
-    animation: inputSlideIn 0.5s ease;
-    animation-fill-mode: both;
-}
-
-@keyframes inputSlideIn {
-    from {
-        opacity: 0;
-        transform: translateX(30px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.input-wrapper:nth-child(1) {
-    animation-delay: 0.1s;
-}
-
-.input-wrapper:nth-child(2) {
-    animation-delay: 0.15s;
-}
-
-.input-wrapper:nth-child(3) {
-    animation-delay: 0.2s;
-}
-
-.input-wrapper:nth-child(4) {
-    animation-delay: 0.25s;
-}
-
-.form-row {
-    display: flex;
-    gap: 1rem;
     width: 100%;
-    animation: rowSlideIn 0.5s ease 0.1s;
-    animation-fill-mode: both;
+    background: #ffffff;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    padding-top: 80px;
+    /* Space for fixed navbar */
 }
 
-@keyframes rowSlideIn {
-    from {
-        opacity: 0;
-        transform: translateX(30px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.form-row .input-wrapper {
-    flex: 1;
-}
-
-.login-form input {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    border: 1px solid #d1d5db;
-    border-radius: 12px;
-    font-size: 1rem;
-    transition: all 0.3s ease;
-    box-sizing: border-box;
-}
-
-.login-form input:focus {
-    outline: none;
-    border-color: #4f46e5;
-    box-shadow: 0 0 10px rgba(79, 70, 229, 0.3);
-}
-
-.login-form input.error {
-    border-color: #ef4444;
-}
-
-.login-form input.error:focus {
-    border-color: #ef4444;
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
-}
-
-.error-message {
-    display: block;
-    color: #ef4444;
-    font-size: 0.875rem;
-    margin-top: 0.25rem;
-    margin-left: 0.25rem;
-    animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-5px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Role Selector Styles */
-.role-label {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #374151;
-    margin-bottom: 0.5rem;
-    text-align: left;
-}
-
-.role-selector {
-    display: flex;
-    gap: 1rem;
-    width: 100%;
-    margin: 0.5rem 0;
-}
-
-.role-option {
-    flex: 1;
-    padding: 0.75rem;
-    border: 2px solid #d1d5db;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.3s ease;
+.user-dashboard-main-content {
+    max-width: 1200px;
+    margin: auto;
+    padding: 4rem 1.5rem;
     text-align: center;
-    font-weight: 500;
-    background: white;
-    user-select: none;
 }
 
-.role-option:hover {
-    border-color: #007b8f;
-    background: #f0f9fa;
-    transform: translateY(-2px);
+.user-dashboard-hero {
+    opacity: 0;
+    animation: userDashboardFadeInUp 0.8s ease-out forwards;
 }
 
-.role-option.selected {
-    border-color: #007b8f;
-    background: #007b8f;
-    color: white;
-    box-shadow: 0 4px 12px rgba(0, 123, 143, 0.3);
+.user-dashboard-hero.visible {
+    opacity: 1;
 }
 
-.role-option.error {
-    border-color: #ef4444;
+.user-dashboard-hero h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #111827;
+    margin-bottom: 1rem;
+    animation: userDashboardSlideInLeft 0.8s ease-out 0.2s backwards;
 }
 
-.role-option.selected:hover {
-    background: #006070;
-    border-color: #006070;
+.user-dashboard-gradient-text {
+    background: linear-gradient(to right, #007b8f,
+        #00434e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+    animation: userDashboardPulse 2s ease-in-out infinite;
 }
 
-.btn-primary {
-    padding: 0.8rem;
-    background: #007b8f;
-    color: white;
-    font-weight: 600;
-    border: none;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-top: 0.5rem;
+.user-dashboard-hero p {
+    color: #4b5563;
+    font-size: 1.1rem;
+    max-width: 600px;
+    margin: auto auto 1.5rem;
+    animation: userDashboardSlideInRight 0.8s ease-out 0.4s backwards;
 }
 
-.btn-primary:hover {
-    background: #006070;
-    transform: scale(1.02);
-}
-
-.btn-primary:active {
-    transform: scale(0.98);
-}
-
-.btn-primary:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-}
-
-.btn-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-}
-
-.spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-.social-login {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-top: 1.5rem;
-    width: 100%;
-    max-width: 400px;
-    margin-left: auto;
-    margin-right: auto;
-    animation: socialSlideIn 0.6s ease 0.3s both;
-}
-
-@keyframes socialSlideIn {
-    from {
-        opacity: 0;
-        transform: translateX(40px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.social-btn {
-    width: 100%;
-    min-height: 42px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 0.7rem;
-    border: none;
-    border-radius: 12px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.3s ease;
-    color: white;
+.user-dashboard-btn-shine {
+    display: inline-block;
+    padding: 0.8rem 2rem;
     font-size: 1rem;
-}
-
-.social-btn.google {
-    background: #db4437;
-}
-
-.social-btn.google:hover {
-    background: #c33c2f;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(219, 68, 55, 0.3);
-}
-
-.social-btn.outlook {
-    background: #0078d4;
-}
-
-.social-btn.outlook:hover {
-    background: #0064b3;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
-}
-
-@keyframes fadeUpIn {
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-.signup-link {
-    margin-top: 1rem;
-    font-size: 0.95rem;
-    color: #6b7280;
-    animation: linkSlideIn 0.5s ease 0.35s both;
-}
-
-@keyframes linkSlideIn {
-    from {
-        opacity: 0;
-        transform: translateX(20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.toggle-link {
-    background: none;
-    border: none;
-    color: #007b8f;
-    cursor: pointer;
-    text-decoration: underline;
-    font-size: inherit;
     font-weight: 600;
-    padding: 0;
-}
-
-.toggle-link:hover {
-    color: #006070;
-}
-
-.signup-link a {
-    color: #4f46e5;
-    font-weight: 600;
+    color: white;
+    background: #4f46e5;
+    border-radius: 0.5rem;
     text-decoration: none;
+    transition: transform 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+    animation: userDashboardFadeInScale 0.8s ease-out 0.6s backwards;
+    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+    border: none;
+}
+
+.user-dashboard-btn-shine:hover {
+    background: #4338ca;
+    transform: scale(1.05) translateY(-2px);
+    box-shadow: 0 8px 25px rgba(79, 70, 229, 0.4);
     cursor: pointer;
 }
 
-.signup-link a:hover {
-    text-decoration: underline;
+/* Features */
+.user-dashboard-features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 2rem;
+    margin: 4rem 0;
 }
 
-/* Animation delays - Only for page load */
-.login-left.slide-left {
-    animation: slideInLeft 1s ease forwards;
+.user-dashboard-feature-card {
+    background: rgba(255, 255, 255, 0.7);
+    padding: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    opacity: 0;
+    animation: userDashboardFadeInUp 0.6s ease-out forwards;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid #f3f4f6;
 }
 
-.login-right.slide-right {
-    animation: slideInRight 1s ease 0.3s forwards;
+.user-dashboard-feature-card:nth-child(1) {
+    animation-delay: 0.8s;
 }
 
-@keyframes slideInLeft {
-    from {
-        transform: translateX(-100%);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+.user-dashboard-feature-card:nth-child(2) {
+    animation-delay: 1s;
 }
 
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+.user-dashboard-feature-card:nth-child(3) {
+    animation-delay: 1.2s;
 }
 
-/* Responsive Design */
-@media (max-width: 1200px) {
-    .login-left {
-        flex: 1.5;
-    }
-
-    .login-right {
-        flex: 1;
-    }
+.user-dashboard-feature-card:nth-child(4) {
+    animation-delay: 1.4s;
 }
 
-@media (max-width: 1024px) {
-    .login-container {
-        flex-direction: column;
-        height: auto;
-        min-height: 100vh;
-    }
-
-    .login-left,
-    .login-right {
-        width: 100%;
-        padding: 3rem 2rem;
-    }
-
-    .login-left {
-        min-height: 40vh;
-    }
-
-    .login-right {
-        min-height: 60vh;
-    }
-
-    .social-login,
-    .login-form {
-        width: 100%;
-        max-width: 400px;
-        margin: 1.5rem auto 0;
-    }
+.user-dashboard-feature-card:hover {
+    transform: translateY(-10px) scale(1.02);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
 }
 
-@media (max-width: 768px) {
-    .login-left .logos {
-        font-size: 3rem;
-    }
-
-    .login-left p {
-        font-size: 1.1rem;
-    }
-
-    .login-right h2 {
-        font-size: 1.8rem;
-    }
-
-    .form-row {
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    .form-row .input-wrapper {
-        width: 100%;
-    }
-
-    .role-selector {
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-
-    .role-option {
-        width: 100%;
-    }
-}
-
-@media (max-width: 480px) {
-
-    .login-left,
-    .login-right {
-        padding: 2rem 1.5rem;
-    }
-
-    .login-left .logos {
-        font-size: 2.5rem;
-    }
-
-    .login-left p {
-        font-size: 1rem;
-    }
-
-    .login-form input,
-    .social-btn {
-        padding: 0.8rem;
-    }
-
-    .back-home {
-        font-size: 0.9rem;
-    }
-}
-
-@media (max-height: 700px) {
-    .login-left {
-        min-height: auto;
-        padding: 2rem;
-    }
-
-    .login-left .logos {
-        font-size: 2.2rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .login-form {
-        gap: 0.8rem;
-    }
-}
-
-@media (max-height: 500px) {
-    .login-container {
-        flex-direction: row;
-    }
-
-    .login-left,
-    .login-right {
-        height: 100vh;
-        overflow-y: auto;
-    }
-}
-
-
-
-
-
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import './UserApplication.css';
-
-export const UserApplication = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    contactNumber: '',
-    cardType: 'gold',
-    address: '',
-    city: '',
-    pincode: '',
-    incomeTask: '',
-    aadharCard: null,
-    panCard: null,
-    incomeTaxProof: null
-  });
-
-  const [submittedData, setSubmittedData] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingApplicationId, setEditingApplicationId] = useState(null);
-  const [uploadingFiles, setUploadingFiles] = useState({
-    aadhar: false,
-    pan: false,
-    incomeTax: false
-  });
-  const [errors, setErrors] = useState({});
-  const [applicationHistory, setApplicationHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [hasActiveApplication, setHasActiveApplication] = useState(false);
-
-  useEffect(() => {
-    loadApplicationData();
-  }, []);
-
-  const loadApplicationData = () => {
-    // Load current active application
-    const saved = localStorage.getItem('creditCardApplication');
-    const allApplicationsData = localStorage.getItem('allApplications');
-    const rejection = localStorage.getItem('applicationRejection');
-    
-    if (allApplicationsData) {
-      const allApps = JSON.parse(allApplicationsData);
-      setApplicationHistory(allApps);
-    }
-    
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setSubmittedData(parsed);
-      
-      // Check if application is in process (not rejected at stage 3)
-      const isRejectedAtStage3 = rejection && JSON.parse(rejection).stage === 3;
-      setHasActiveApplication(!isRejectedAtStage3);
-    }
-
-    // Check if we're coming from edit button
-    if (location.state?.editApplication) {
-      const appToEdit = location.state.editApplication;
-      setIsEditing(true);
-      setEditingApplicationId(appToEdit.id);
-      setFormData({
-        firstName: appToEdit.firstName || '',
-        lastName: appToEdit.lastName || '',
-        email: appToEdit.email || '',
-        contactNumber: appToEdit.contactNumber || '',
-        cardType: appToEdit.cardType || 'gold',
-        address: appToEdit.address || '',
-        city: appToEdit.city || '',
-        pincode: appToEdit.pincode || '',
-        incomeTask: appToEdit.incomeTask || '',
-        aadharCard: appToEdit.aadharCard || null,
-        panCard: appToEdit.panCard || null,
-        incomeTaxProof: appToEdit.incomeTaxProof || null
-      });
-      setHasActiveApplication(false);
-      // Clear the location state
-      window.history.replaceState({}, document.title);
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
-
-  const handleFileChange = (e, type) => {
-    const file = e.target.files[0];
-    if (file) {
-      setUploadingFiles(prev => ({ ...prev, [type]: true }));
-      
-      setTimeout(() => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const fieldName = type === 'aadhar' ? 'aadharCard' : type === 'pan' ? 'panCard' : 'incomeTaxProof';
-          setFormData(prev => ({
-            ...prev,
-            [fieldName]: {
-              name: file.name,
-              data: reader.result
-            }
-          }));
-          setUploadingFiles(prev => ({ ...prev, [type]: false }));
-        };
-        reader.readAsDataURL(file);
-      }, 1500);
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!formData.email.trim()) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email is invalid';
-    if (!formData.contactNumber.trim()) newErrors.contactNumber = 'Contact number is required';
-    else if (!/^\d{10}$/.test(formData.contactNumber)) newErrors.contactNumber = 'Contact number must be 10 digits';
-    if (!formData.address.trim()) newErrors.address = 'Address is required';
-    if (!formData.city.trim()) newErrors.city = 'City is required';
-    if (!formData.pincode.trim()) newErrors.pincode = 'Pincode is required';
-    else if (!/^\d{6}$/.test(formData.pincode)) newErrors.pincode = 'Pincode must be 6 digits';
-    if (!formData.incomeTask.trim()) newErrors.incomeTask = 'Income details are required';
-    if (!formData.aadharCard) newErrors.aadharCard = 'Aadhar card is required';
-    if (!formData.panCard) newErrors.panCard = 'PAN card is required';
-    if (!formData.incomeTaxProof) newErrors.incomeTaxProof = 'Income tax proof is required';
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (validateForm()) {
-      const applicationId = editingApplicationId || Date.now().toString();
-      const dataToSave = {
-        ...formData,
-        id: applicationId,
-        submittedAt: new Date().toISOString(),
-        status: 'in-process'
-      };
-      
-      // Save current application
-      localStorage.setItem('creditCardApplication', JSON.stringify(dataToSave));
-      localStorage.removeItem('applicationRejection');
-      
-      // Update history if editing
-      if (editingApplicationId) {
-        const allApps = JSON.parse(localStorage.getItem('allApplications') || '[]');
-        const updatedApps = allApps.map(app => 
-          app.id === editingApplicationId ? { ...app, ...dataToSave, status: 'in-process' } : app
-        );
-        localStorage.setItem('allApplications', JSON.stringify(updatedApps));
-      }
-      
-      setSubmittedData(dataToSave);
-      setIsEditing(false);
-      setEditingApplicationId(null);
-      setHasActiveApplication(true);
-      
-      // Navigate to status page
-      navigate('/status');
-    }
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setEditingApplicationId(null);
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      contactNumber: '',
-      cardType: 'gold',
-      address: '',
-      city: '',
-      pincode: '',
-      incomeTask: '',
-      aadharCard: null,
-      panCard: null,
-      incomeTaxProof: null
-    });
-    navigate('/status');
-  };
-
-  const handleNewApplication = () => {
-    setIsEditing(false);
-    setEditingApplicationId(null);
-    setShowHistory(false);
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      contactNumber: '',
-      cardType: 'gold',
-      address: '',
-      city: '',
-      pincode: '',
-      incomeTask: '',
-      aadharCard: null,
-      panCard: null,
-      incomeTaxProof: null
-    });
-  };
-
-  const toggleHistory = () => {
-    setShowHistory(!showHistory);
-  };
-
-  const getStatusBadgeClass = (status) => {
-    switch(status) {
-      case 'approved': return 'status-approved';
-      case 'rejected': return 'status-rejected';
-      case 'in-process': return 'status-process';
-      default: return '';
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch(status) {
-      case 'approved': return 'Approved';
-      case 'rejected': return 'Rejected';
-      case 'in-process': return 'In Process';
-      default: return status;
-    }
-  };
-
-  // Show submitted view only if application is approved (reached stage 3 successfully)
-  if (submittedData && !isEditing && submittedData.status === 'approved') {
-    return (
-      <div className="application-container">
-        <div className="submitted-card">
-          <div className="success-icon">
-            <svg viewBox="0 0 52 52">
-              <circle className="success-circle" cx="26" cy="26" r="25" fill="none"/>
-              <path className="success-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
-            </svg>
-          </div>
-          
-          <h2 className="submitted-title">Application Approved Successfully!</h2>
-          <p className="submitted-subtitle">Your credit card application has been approved and will be delivered soon</p>
-          
-          <div className="submitted-details">
-            <div className="detail-row">
-              <span className="detail-label">Name:</span>
-              <span className="detail-value">{submittedData.firstName} {submittedData.lastName}</span>
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Email:</span>
-              <span className="detail-value">{submittedData.email}</span>
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Contact:</span>
-              <span className="detail-value">{submittedData.contactNumber}</span>
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Card Type:</span>
-              <span className="detail-value">{submittedData.cardType}</span>
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Submitted:</span>
-              <span className="detail-value">{new Date(submittedData.submittedAt).toLocaleString()}</span>
-            </div>
-          </div>
-          
-          <button className="new-application-button" onClick={handleNewApplication}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Apply for New Card
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="application-container">
-      <div className="form-header">
-        <h1 className="form-title">Credit Card Application</h1>
-        <p className="form-subtitle">
-          {isEditing ? 'Edit and resubmit your application' : 'Fill in your details to apply for a credit card'}
-        </p>
-      </div>
-
-      {/* Application History Toggle */}
-      {applicationHistory.length > 0 && !hasActiveApplication && (
-        <div className="history-toggle-section">
-          <button className="history-toggle-btn" onClick={toggleHistory}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-            {showHistory ? 'Hide' : 'View'} Application History ({applicationHistory.length})
-          </button>
-        </div>
-      )}
-
-      {/* Application History */}
-      {showHistory && applicationHistory.length > 0 && (
-        <div className="history-container">
-          <h2 className="history-title">Previous Applications</h2>
-          <div className="history-list">
-            {applicationHistory.map((app) => (
-              <div key={app.id} className="history-card">
-                <div className="history-header">
-                  <div className="history-info">
-                    <h3 className="history-name">{app.firstName} {app.lastName}</h3>
-                    <p className="history-date">
-                      {new Date(app.submittedAt).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                  <span className={`status-badge ${getStatusBadgeClass(app.status)}`}>
-                    {getStatusText(app.status)}
-                  </span>
-                </div>
-                
-                <div className="history-details">
-                  <div className="history-detail-item">
-                    <span className="history-label">Card Type:</span>
-                    <span className="history-value">{app.cardType}</span>
-                  </div>
-                  <div className="history-detail-item">
-                    <span className="history-label">Email:</span>
-                    <span className="history-value">{app.email}</span>
-                  </div>
-                  <div className="history-detail-item">
-                    <span className="history-label">Contact:</span>
-                    <span className="history-value">{app.contactNumber}</span>
-                  </div>
-                </div>
-
-                {app.rejectionReason && (
-                  <div className="rejection-info">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10"/>
-                      <line x1="12" y1="8" x2="12" y2="12"/>
-                      <line x1="12" y1="16" x2="12.01" y2="16"/>
-                    </svg>
-                    <span className="rejection-text">{app.rejectionReason}</span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Block new application if there's an active one */}
-      {hasActiveApplication && !isEditing ? (
-        <div className="active-application-block">
-          <div className="block-icon">
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-          </div>
-          <h2 className="block-title">Application In Progress</h2>
-          <p className="block-message">
-            You already have an active credit card application being processed. 
-            You cannot submit a new application until your current one is completed.
-          </p>
-          <button className="view-status-btn" onClick={() => navigate('/status')}>
-            View Application Status
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="application-form">
-          <div className="form-section">
-            <h3 className="section-title">Personal Information</h3>
-            
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">First Name *</label>
-                <input
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.firstName ? 'error' : ''}`}
-                  placeholder="John"
-                />
-                {errors.firstName && <span className="error-text">{errors.firstName}</span>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Last Name *</label>
-                <input
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.lastName ? 'error' : ''}`}
-                  placeholder="Doe"
-                />
-                {errors.lastName && <span className="error-text">{errors.lastName}</span>}
-              </div>
-            </div>
-
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">Email Address *</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.email ? 'error' : ''}`}
-                  placeholder="john.doe@example.com"
-                />
-                {errors.email && <span className="error-text">{errors.email}</span>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Contact Number *</label>
-                <input
-                  type="tel"
-                  name="contactNumber"
-                  value={formData.contactNumber}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.contactNumber ? 'error' : ''}`}
-                  placeholder="9876543210"
-                  maxLength="10"
-                />
-                {errors.contactNumber && <span className="error-text">{errors.contactNumber}</span>}
-              </div>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <h3 className="section-title">Address Details</h3>
-            
-            <div className="form-group">
-              <label className="form-label">Address *</label>
-              <textarea
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                className={`form-input ${errors.address ? 'error' : ''}`}
-                placeholder="Enter your complete address"
-                rows="3"
-              />
-              {errors.address && <span className="error-text">{errors.address}</span>}
-            </div>
-
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">City *</label>
-                <input
-                  type="text"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.city ? 'error' : ''}`}
-                  placeholder="Mumbai"
-                />
-                {errors.city && <span className="error-text">{errors.city}</span>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Pincode *</label>
-                <input
-                  type="text"
-                  name="pincode"
-                  value={formData.pincode}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.pincode ? 'error' : ''}`}
-                  placeholder="400001"
-                  maxLength="6"
-                />
-                {errors.pincode && <span className="error-text">{errors.pincode}</span>}
-              </div>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <h3 className="section-title">Card & Income Details</h3>
-            
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">Card Type *</label>
-                <div className="select-wrapper">
-                  <select
-                    name="cardType"
-                    value={formData.cardType}
-                    onChange={handleInputChange}
-                    className="form-select"
-                  >
-                    <option value="gold">Gold Card</option>
-                    <option value="silver">Silver Card</option>
-                    <option value="platinum">Platinum Card</option>
-                  </select>
-                  <svg className="select-arrow" width="12" height="8" viewBox="0 0 12 8" fill="none">
-                    <path d="M1 1L6 6L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Annual Income *</label>
-                <input
-                  type="text"
-                  name="incomeTask"
-                  value={formData.incomeTask}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.incomeTask ? 'error' : ''}`}
-                  placeholder="e.g., ₹5,00,000"
-                />
-                {errors.incomeTask && <span className="error-text">{errors.incomeTask}</span>}
-              </div>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <h3 className="section-title">Document Upload</h3>
-            
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">Aadhar Card *</label>
-                <div className={`file-upload ${errors.aadharCard ? 'error' : ''}`}>
-                  <input
-                    type="file"
-                    id="aadhar"
-                    accept="image/*,.pdf"
-                    onChange={(e) => handleFileChange(e, 'aadhar')}
-                    className="file-input"
-                  />
-                  <label htmlFor="aadhar" className="file-label">
-                    {uploadingFiles.aadhar ? (
-                      <div className="upload-loading">
-                        <div className="spinner"></div>
-                        <span>Uploading...</span>
-                      </div>
-                    ) : formData.aadharCard ? (
-                      <div className="file-uploaded">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path d="M9 12l2 2 4-4"/>
-                          <circle cx="12" cy="12" r="10"/>
-                        </svg>
-                        <span>{formData.aadharCard.name}</span>
-                      </div>
-                    ) : (
-                      <div className="file-placeholder">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                          <polyline points="17 8 12 3 7 8"/>
-                          <line x1="12" y1="3" x2="12" y2="15"/>
-                        </svg>
-                        <span>Upload Aadhar Card</span>
-                      </div>
-                    )}
-                  </label>
-                </div>
-                {errors.aadharCard && <span className="error-text">{errors.aadharCard}</span>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">PAN Card *</label>
-                <div className={`file-upload ${errors.panCard ? 'error' : ''}`}>
-                  <input
-                    type="file"
-                    id="pan"
-                    accept="image/*,.pdf"
-                    onChange={(e) => handleFileChange(e, 'pan')}
-                    className="file-input"
-                  />
-                  <label htmlFor="pan" className="file-label">
-                    {uploadingFiles.pan ? (
-                      <div className="upload-loading">
-                        <div className="spinner"></div>
-                        <span>Uploading...</span>
-                      </div>
-                    ) : formData.panCard ? (
-                      <div className="file-uploaded">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path d="M9 12l2 2 4-4"/>
-                          <circle cx="12" cy="12" r="10"/>
-                        </svg>
-                        <span>{formData.panCard.name}</span>
-                      </div>
-                    ) : (
-                      <div className="file-placeholder">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                          <polyline points="17 8 12 3 7 8"/>
-                          <line x1="12" y1="3" x2="12" y2="15"/>
-                        </svg>
-                        <span>Upload PAN Card</span>
-                      </div>
-                    )}
-                  </label>
-                </div>
-                {errors.panCard && <span className="error-text">{errors.panCard}</span>}
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Income Tax Proof *</label>
-              <div className={`file-upload ${errors.incomeTaxProof ? 'error' : ''}`}>
-                <input
-                  type="file"
-                  id="incomeTax"
-                  accept="image/*,.pdf"
-                  onChange={(e) => handleFileChange(e, 'incomeTax')}
-                  className="file-input"
-                />
-                <label htmlFor="incomeTax" className="file-label">
-                  {uploadingFiles.incomeTax ? (
-                    <div className="upload-loading">
-                      <div className="spinner"></div>
-                      <span>Uploading...</span>
-                    </div>
-                  ) : formData.incomeTaxProof ? (
-                    <div className="file-uploaded">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M9 12l2 2 4-4"/>
-                        <circle cx="12" cy="12" r="10"/>
-                      </svg>
-                      <span>{formData.incomeTaxProof.name}</span>
-                    </div>
-                  ) : (
-                    <div className="file-placeholder">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="17 8 12 3 7 8"/>
-                        <line x1="12" y1="3" x2="12" y2="15"/>
-                      </svg>
-                      <span>Upload Income Tax Proof</span>
-                    </div>
-                  )}
-                </label>
-              </div>
-              {errors.incomeTaxProof && <span className="error-text">{errors.incomeTaxProof}</span>}
-            </div>
-          </div>
-
-          <div className="form-actions">
-            {isEditing && (
-              <button type="button" className="cancel-button" onClick={handleCancel}>
-                Cancel
-              </button>
-            )}
-            <button type="submit" className="submit-button">
-              <span>{isEditing ? 'Resubmit Application' : 'Submit Application'}</span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <line x1="5" y1="12" x2="19" y2="12"/>
-                <polyline points="12 5 19 12 12 19"/>
-              </svg>
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
-};
-
-
-
-
-
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-}
-
-.application-container {
-    min-height: 100vh;
-    background: #ffffff;
-    padding: 40px 20px;
-}
-
-.form-header {
-    text-align: center;
-    margin-bottom: 50px;
-    padding-top: 20px;
-}
-
-.form-title {
-    font-size: 36px;
-    font-weight: 700;
-    color: #1a1a1a;
-    margin-bottom: 8px;
-}
-
-.form-subtitle {
-    color: #666666;
-    font-size: 16px;
-}
-
-/* History Toggle Section */
-.history-toggle-section {
-    max-width: 1000px;
-    margin: 0 auto 30px;
-    display: flex;
-    justify-content: flex-end;
-}
-
-.history-toggle-btn {
-    padding: 10px 20px;
-    background: #f5f5f5;
-    border: 2px solid #e5e5e5;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #333333;
-    cursor: pointer;
+.user-dashboard-feature-icon {
+    font-size: 1.5rem;
+    width: 3rem;
+    height: 3rem;
     display: flex;
     align-items: center;
-    gap: 8px;
-    transition: all 0.2s ease;
+    justify-content: center;
+    border-radius: 50%;
+    margin: auto auto 1rem;
+    transition: transform 0.3s ease;
 }
 
-.history-toggle-btn:hover {
-    background: #e5e5e5;
-    border-color: #d4d4d4;
+.user-dashboard-feature-card:hover .user-dashboard-feature-icon {
+    animation: userDashboardFloat 1.5s ease-in-out infinite;
 }
 
-.history-toggle-btn svg {
-    stroke-width: 2;
+.user-dashboard-feature-icon.blue {
+    background: #dbeafe;
+    color: #2563eb;
 }
 
-/* Application History */
-.history-container {
-    max-width: 1000px;
-    margin: 0 auto 40px;
-    padding: 30px;
-    background: #fafafa;
-    border-radius: 12px;
-    border: 1px solid #e5e5e5;
-}
-
-.history-title {
-    font-size: 22px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin-bottom: 20px;
-}
-
-.history-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.history-card {
-    background: #ffffff;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    padding: 20px;
-    transition: all 0.2s ease;
-}
-
-.history-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.history-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 16px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid #f5f5f5;
-}
-
-.history-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.history-name {
-    font-size: 18px;
-    font-weight: 600;
-    color: #1a1a1a;
-}
-
-.history-date {
-    font-size: 13px;
-    color: #666666;
-}
-
-.status-badge {
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.status-approved {
+.user-dashboard-feature-icon.green {
     background: #dcfce7;
     color: #16a34a;
 }
 
-.status-rejected {
-    background: #fee2e2;
-    color: #dc2626;
+.user-dashboard-feature-icon.purple {
+    background: #ede9fe;
+    color: #7c3aed;
 }
 
-.status-process {
-    background: #fef3c7;
-    color: #f59e0b;
+.user-dashboard-feature-icon.yellow {
+    background: #fef9c3;
+    color: #ca8a04;
 }
 
-.history-details {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
-    margin-bottom: 12px;
+.user-dashboard-feature-card h3 {
+    transition: color 0.3s ease;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 0.75rem;
 }
 
-.history-detail-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.history-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #666666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.history-value {
-    font-size: 14px;
-    color: #1a1a1a;
-    font-weight: 500;
-}
-
-.rejection-info {
-    margin-top: 12px;
-    padding: 12px;
-    background: #fef2f2;
-    border-left: 3px solid #dc2626;
-    border-radius: 4px;
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-}
-
-.rejection-info svg {
-    flex-shrink: 0;
-    margin-top: 2px;
-}
-
-.rejection-text {
-    font-size: 13px;
-    color: #991b1b;
+.user-dashboard-feature-card p {
+    color: #6b7280;
+    font-size: 0.95rem;
     line-height: 1.5;
 }
 
-/* Active Application Block */
-.active-application-block {
-    max-width: 600px;
-    margin: 0 auto;
+.user-dashboard-feature-card:hover h3 {
+    color: #4f46e5;
+}
+
+/* More Info */
+.user-dashboard-more-info {
+    margin: 5rem 0 3rem;
+    padding: 3rem 2rem;
     text-align: center;
-    padding: 60px 40px;
-    background: #fafafa;
-    border-radius: 12px;
-    border: 1px solid #e5e5e5;
+    color: #374151;
+    opacity: 0;
+    animation: userDashboardFadeInUp 0.8s ease-out 1.6s forwards;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(249, 250, 251, 0.9));
+    border-radius: 1.5rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
 }
 
-.block-icon {
-    margin-bottom: 24px;
+.user-dashboard-more-info h2 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    margin-bottom: 2.5rem;
+    animation: userDashboardSlideInLeft 0.8s ease-out 1.8s backwards;
+    background: linear-gradient(to right, #111827, #4f46e5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
-.block-title {
-    font-size: 24px;
-    font-weight: 700;
-    color: #1a1a1a;
-    margin-bottom: 12px;
-}
-
-.block-message {
-    color: #666666;
-    font-size: 15px;
-    line-height: 1.6;
-    margin-bottom: 24px;
-}
-
-.view-status-btn {
-    padding: 14px 32px;
-    background: #000000;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.view-status-btn:hover {
-    background: #1a1a1a;
-    transform: translateY(-1px);
-}
-
-.view-status-btn:active {
-    transform: scale(0.98);
-}
-
-/* Form Styles */
-.application-form {
-    max-width: 1000px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 50px;
-}
-
-.form-section {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    padding-bottom: 30px;
-    border-bottom: 1px solid #e5e5e5;
-}
-
-.form-section:last-of-type {
-    border-bottom: none;
-}
-
-.section-title {
-    font-size: 20px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin-bottom: 8px;
-}
-
-.form-grid {
+.user-dashboard-benefits-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
 }
 
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.form-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #333333;
-}
-
-.form-input,
-.form-select {
-    padding: 14px 16px;
-    border: 2px solid #d4d4d4;
-    border-radius: 8px;
-    font-size: 15px;
-    transition: all 0.2s ease;
-    outline: none;
-    background: #ffffff;
-    color: #1a1a1a;
-    font-family: inherit;
-}
-
-.form-input:focus,
-.form-select:focus {
-    border-color: #000000;
-}
-
-.form-input.error,
-.form-select.error {
-    border-color: #dc2626;
-}
-
-textarea.form-input {
-    resize: vertical;
-    min-height: 100px;
-}
-
-.error-text {
-    color: #dc2626;
-    font-size: 12px;
-    margin-top: 4px;
-}
-
-.select-wrapper {
+.user-dashboard-benefit-item {
+    background: white;
+    padding: 2rem 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+    opacity: 0;
+    animation: userDashboardFadeInUp 0.6s ease-out forwards;
+    transition: all 0.4s ease;
+    border: 2px solid transparent;
     position: relative;
+    overflow: hidden;
 }
 
-.form-select {
-    width: 100%;
-    appearance: none;
-    padding-right: 40px;
-    cursor: pointer;
-}
-
-.select-arrow {
+.user-dashboard-benefit-item::before {
+    content: '';
     position: absolute;
-    right: 16px;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none;
-    color: #666666;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(to right, #4f46e5, #9333ea);
+    transform: scaleX(0);
+    transition: transform 0.4s ease;
 }
 
-.file-upload {
-    position: relative;
+.user-dashboard-benefit-item:hover::before {
+    transform: scaleX(1);
 }
 
-.file-input {
-    display: none;
+.user-dashboard-benefit-item:nth-child(1) {
+    animation-delay: 2s;
 }
 
-.file-label {
-    display: block;
-    padding: 24px;
-    border: 2px dashed #d4d4d4;
-    border-radius: 8px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    background: #fafafa;
+.user-dashboard-benefit-item:nth-child(2) {
+    animation-delay: 2.2s;
 }
 
-.file-label:hover {
-    border-color: #000000;
-    background: #f5f5f5;
+.user-dashboard-benefit-item:nth-child(3) {
+    animation-delay: 2.4s;
 }
 
-.file-upload.error .file-label {
-    border-color: #dc2626;
+.user-dashboard-benefit-item:nth-child(4) {
+    animation-delay: 2.6s;
 }
 
-.file-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    color: #666666;
+.user-dashboard-benefit-item:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 30px rgba(79, 70, 229, 0.15);
+    border-color: #e0e7ff;
 }
 
-.file-placeholder svg {
-    stroke-width: 2;
+.user-dashboard-benefit-icon {
+    font-size: 2rem;
+    margin-bottom: 1rem;
 }
 
-.upload-loading {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    justify-content: center;
-    color: #1a1a1a;
-    font-weight: 500;
-}
-
-.spinner {
-    width: 24px;
-    height: 24px;
-    border: 3px solid #e5e5e5;
-    border-top-color: #1a1a1a;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-.file-uploaded {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    justify-content: center;
-    color: #16a34a;
-    font-weight: 500;
-}
-
-.file-uploaded svg {
-    stroke-width: 2;
-}
-
-.form-actions {
-    display: flex;
-    gap: 16px;
-    justify-content: flex-end;
-    margin-top: 20px;
-    max-width: 1000px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.submit-button,
-.cancel-button,
-.edit-button {
-    padding: 14px 32px;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: none;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    justify-content: center;
-}
-
-.submit-button {
-    background: #000000;
-    color: white;
-    flex: 1;
-    max-width: 300px;
-}
-
-.submit-button:hover {
-    background: #1a1a1a;
-}
-
-.submit-button:active {
-    transform: scale(0.98);
-}
-
-.cancel-button {
-    background: #f5f5f5;
-    color: #666666;
-    border: 2px solid #e5e5e5;
-}
-
-.cancel-button:hover {
-    background: #e5e5e5;
-}
-
-.submitted-card {
-    max-width: 800px;
-    margin: 0 auto;
-    text-align: center;
-    padding: 60px 40px;
-    background: #fafafa;
-    border-radius: 12px;
-    border: 1px solid #e5e5e5;
-}
-
-.success-icon {
-    width: 100px;
-    height: 100px;
-    margin: 0 auto 32px;
-}
-
-.success-circle {
-    stroke: #16a34a;
-    stroke-width: 2;
-    stroke-dasharray: 166;
-    stroke-dashoffset: 166;
-    animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
-}
-
-.success-check {
-    stroke: #16a34a;
-    stroke-width: 2;
-    stroke-dasharray: 48;
-    stroke-dashoffset: 48;
-    animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-@keyframes stroke {
-    to {
-        stroke-dashoffset: 0;
-    }
-}
-
-.submitted-title {
-    font-size: 28px;
+.user-dashboard-benefit-title {
+    font-size: 1.25rem;
     font-weight: 700;
-    color: #1a1a1a;
-    margin-bottom: 8px;
+    color: #111827;
+    margin-bottom: 0.75rem;
 }
 
-.submitted-subtitle {
-    color: #666666;
-    font-size: 16px;
-    margin-bottom: 32px;
+.user-dashboard-benefit-text {
+    font-size: 0.95rem;
+    color: #6b7280;
+    line-height: 1.6;
 }
 
-.submitted-details {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 32px;
-    margin-bottom: 32px;
-    text-align: left;
-    border: 1px solid #e5e5e5;
-}
-
-.detail-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 16px 0;
-    border-bottom: 1px solid #e5e5e5;
-}
-
-.detail-row:last-child {
-    border-bottom: none;
-}
-
-.detail-label {
-    font-weight: 600;
-    color: #666666;
-    font-size: 14px;
-}
-
-.detail-value {
-    color: #1a1a1a;
-    font-weight: 500;
-    font-size: 14px;
-    text-align: right;
-}
-
-.file-name {
-    font-size: 13px;
-    color: #1a1a1a;
-}
-
-.edit-button {
-    background: #000000;
+/* Footer */
+.user-dashboard-footer {
+    text-align: center;
+    padding: 2rem 0;
+    background: #111827;
     color: white;
-    margin: 0 auto;
+    opacity: 0;
+    animation: userDashboardFadeInUp 0.8s ease-out 2.8s forwards;
 }
 
-.edit-button:hover {
-    background: #1a1a1a;
-}
-
-.edit-button svg {
-    stroke-width: 2;
-}
-
-.new-application-button {
-    padding: 14px 32px;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: none;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    justify-content: center;
-    background: #000000;
-    color: white;
-    margin: 0 auto;
-}
-
-.new-application-button:hover {
-    background: #1a1a1a;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.new-application-button:active {
-    transform: scale(0.98);
-}
-
-.new-application-button svg {
-    stroke-width: 2;
-}
-
+/* Responsive adjustments */
 @media (max-width: 768px) {
-    .form-header {
-        margin-bottom: 40px;
+    .user-dashboard-wrapper {
+        padding-top: 70px;
     }
 
-    .form-title {
-        font-size: 28px;
+    .user-dashboard-hero h1 {
+        font-size: 2rem;
     }
 
-    .application-form {
-        gap: 40px;
-    }
-
-    .form-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .section-title {
-        font-size: 18px;
-    }
-
-    .submitted-card {
-        padding: 40px 24px;
-    }
-
-    .detail-row {
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .detail-value {
-        text-align: left;
-    }
-
-    .form-actions {
-        flex-direction: column;
-    }
-
-    .submit-button {
-        max-width: 100%;
-    }
-
-    .history-toggle-section {
-        justify-content: center;
-    }
-
-    .history-container {
-        padding: 20px;
-    }
-
-    .history-header {
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .history-details {
-        grid-template-columns: 1fr;
-    }
-
-    .active-application-block {
-        padding: 40px 24px;
-    }
-
-    .block-title {
-        font-size: 20px;
+    .user-dashboard-hero p {
+        font-size: 1rem;
     }
 }
