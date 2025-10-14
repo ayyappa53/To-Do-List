@@ -25,3 +25,551 @@
 </body>
 
 </html>
+
+
+
+
+
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import Login from "./components/Login/Login";
+import Dashboard from "./components/Dashboard/Dashboard";
+import Layout from "./components/Layout/Layout";
+
+import UserDashboard from "./components/UserDashbaord/UserDashboard";
+import { UserApplication } from "./components/UserDashbaord/Application/UserApplication";
+import UserStatus from "./components/UserDashbaord/Status/UserStatus";
+
+// Import all sales pages (add these imports based on your actual components)
+// import Onboarding from "./components/Onboarding/Onboarding";
+// import EditApplication from "./components/EditApplication/EditApplication";
+// import DocVerification from "./components/DocVerification/DocVerification";
+// import OfferConfirmation from "./components/OfferConfirmation/OfferConfirmation";
+// import ReportingPage from "./components/ReportingPage/ReportingPage";
+
+function App() {
+  const [role, setRole] = React.useState(localStorage.getItem("userRole"));
+
+  React.useEffect(() => {
+    const handleRoleChange = () => {
+      setRole(localStorage.getItem("userRole"));
+    };
+    
+    window.addEventListener("roleChange", handleRoleChange);
+    
+    window.addEventListener("storage", handleRoleChange);
+    
+    setRole(localStorage.getItem("userRole"));
+    
+    return () => {
+      window.removeEventListener("roleChange", handleRoleChange);
+      window.removeEventListener("storage", handleRoleChange);
+    };
+  }, []);
+
+  return (
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+
+        {role === "sales" ? (
+          <>
+            <Route path="/dashboard" element={
+              <Layout>
+                <Dashboard />
+              </Layout>
+            } />
+            {/* <Route path="/onboarding" element={
+              <Layout>
+                <Onboarding />
+              </Layout>
+            } />
+            <Route path="/edit" element={
+              <Layout>
+                <EditApplication />
+              </Layout>
+            } />
+            <Route path="/doc-verification" element={
+              <Layout>
+                <DocVerification />
+              </Layout>
+            } />
+            <Route path="/offer" element={
+              <Layout>
+                <OfferConfirmation />
+              </Layout>
+            } />
+            <Route path="/report" element={
+              <Layout>
+                <ReportingPage />
+              </Layout>
+            } /> */}
+            {/* Redirect to dashboard for any other route */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </>
+        ) : role === "user" ? (
+          <>
+            <Route path="/user-dashboard" element={
+              <Layout>
+                <UserDashboard />
+              </Layout>
+            } />
+            <Route path="/apply" element={
+              <Layout>
+                <UserApplication />
+              </Layout>
+            } />
+            <Route path="/status" element={
+              <Layout>
+                <UserStatus />
+              </Layout>
+            } />
+            {/* Redirect to user dashboard for any other route */}
+            <Route path="*" element={<Navigate to="/user-dashboard" replace />} />
+          </>
+        ) : (
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        )}
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
+
+
+import React from 'react';
+import { Menu, X, User, LogOut } from 'lucide-react';
+import './Navbar.css';
+import { useNavigate } from 'react-router-dom';
+import image from './images/image.png';
+const Navbar = ({ sidebarOpen, toggleSidebar, adminName }) => {
+  const navigate = useNavigate();
+  const role = localStorage.getItem("userRole");
+const name = role === 'sales' ? 'Sales User' : 'User';
+  return (
+    <nav className="dash-navbar">
+      <div className="dash-navbar-left">
+  <button className="dash-hamburger" onClick={toggleSidebar}>
+    {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+  </button>
+  <img src={image} alt="NGOS Logo" className="dash-logo-img" /> {/* Add this */}
+</div>
+      <div className="dash-navbar-right">
+        <User className="dash-user-icon" size={20} />
+        <span className="dash-welcome-text">Welcome, {name}!</span>
+        <button className="dash-logout-btn" onClick={()=>{navigate("/login");}}>
+          <LogOut size={18} />
+          Logout
+        </button>
+      </div>
+    </nav>
+  );
+};
+
+export default Navbar;
+
+
+.dash-navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 40px;
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.dash-navbar-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.dash-hamburger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #1f2937;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.dash-hamburger:hover {
+    background: #f3f4f6;
+}
+
+.dash-logo-text {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(to right, #111827, #4f46e5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.dash-logo-img {
+    height: 60px;
+    width: auto;
+    object-fit: contain;
+}
+
+.dash-navbar-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.dash-user-icon {
+    color: #6b7280;
+}
+
+.dash-welcome-text {
+    color: #4b5563;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Updated Logout Button with Modern Animations */
+.dash-logout-btn {
+    display: inline-block;
+    padding: 0.8rem 2rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, rgb(220, 38, 38), rgb(190, 48, 48));
+    border: none;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeInScale 0.8s ease-out 0.6s backwards, pulseGlow 3s ease-in-out infinite;
+}
+
+.dash-logout-btn:hover {
+    transform: translateY(-3px);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .dash-navbar {
+        padding: 0 20px;
+        height: 70px;
+    }
+
+    .dash-hamburger {
+        display: flex;
+    }
+
+    .dash-welcome-text {
+        display: none;
+    }
+        .dash-logo-img {
+            height: 40px;
+            width: auto;
+            object-fit: contain;
+        }
+}
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Home, User, FileText, Edit, CheckCircle, TrendingUp } from 'lucide-react';
+import { Clock as ClockIcon } from 'lucide-react';
+import './Sidebar.css';
+
+const Sidebar = ({ sidebarOpen, toggleSidebar }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  const [role, setRole] = useState(localStorage.getItem("userRole"));
+
+  useEffect(() => {
+    const handleStorage = () => setRole(localStorage.getItem("userRole"));
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  const menuItems = role === 'sales'
+    ? [
+        { name: 'Dashboard', path: '/dashboard', icon: <Home size={20} /> },
+        { name: 'Onboarding', path: '/onboarding', icon: <User size={20} /> },
+        { name: 'Edit Application', path: '/edit', icon: <Edit size={20} /> },
+        { name: 'Document Verification', path: '/doc-verification', icon: <FileText size={20} /> },
+        { name: 'Offer Confirmation', path: '/offer', icon: <CheckCircle size={20} /> },
+        { name: 'Reporting Page', path: '/report', icon: <TrendingUp size={20} /> }
+      ]
+    : [
+        { name: 'Dashboard', path: '/user-dashboard', icon: <Home size={20} /> },
+        { name: 'Start Application', path: '/apply', icon: <FileText size={20} /> },
+        { name: 'Track Status', path: '/status', icon: <ClockIcon size={20} /> }
+      ];
+
+  const handleMenuClick = (path) => {
+    navigate(path);
+    if (window.innerWidth <= 768) toggleSidebar();
+  };
+
+  return (
+    <>
+      <aside className={`dash-sidebar ${sidebarOpen ? 'dash-sidebar-open' : ''}`}>
+        <ul className="dash-menu">
+          {menuItems.map((item, index) => (
+            <li
+              key={index}
+              className={`dash-menu-item ${location.pathname.startsWith(item.path) ? 'dash-menu-item-active' : ''}`}
+              style={{ animationDelay: `${index * 0.1}s` }}
+              onClick={() => handleMenuClick(item.path)}
+            >
+              <span className="dash-menu-icon">{item.icon}</span>
+              <span className="dash-menu-text">{item.name}</span>
+            </li>
+          ))}
+        </ul>
+      </aside>
+
+      {sidebarOpen && <div className="dash-overlay" onClick={toggleSidebar}></div>}
+    </>
+  );
+};
+
+export default Sidebar;
+
+
+
+/* Sidebar */
+.dash-sidebar {
+    position: fixed;
+    top: 80px;
+    left: 0;
+    width: 260px;
+    height: calc(100vh - 80px);
+    background: white;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.08);
+    padding: 30px 0;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 999;
+    overflow-y: auto;
+}
+
+.dash-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.dash-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 25px;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    animation: slideInLeft 0.5s ease forwards;
+    opacity: 0;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.dash-menu-item:hover {
+    background: #f8fafc;
+    color: #4f46e5;
+    transform: translateX(4px);
+}
+
+.dash-menu-item-active {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(147, 51, 234, 0.1));
+    color: #4f46e5;
+    font-weight: 700;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dash-menu-item-active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(to bottom, #4f46e5, #9333ea);
+    animation: slideInBar 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideInBar {
+    from {
+        width: 0;
+        opacity: 0;
+    }
+
+    to {
+        width: 4px;
+        opacity: 1;
+    }
+}
+
+.dash-menu-icon {
+    display: flex;
+    align-items: center;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dash-menu-item-active .dash-menu-icon {
+    transform: scale(1.1);
+}
+
+.dash-menu-text {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Overlay */
+.dash-overlay {
+    position: fixed;
+    top: 80px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 998;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Scrollbar Styling */
+.dash-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dash-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.dash-sidebar::-webkit-scrollbar-thumb {
+    background: #e5e7eb;
+    border-radius: 3px;
+    transition: background 0.3s ease;
+}
+
+.dash-sidebar::-webkit-scrollbar-thumb:hover {
+    background: #d1d5db;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .dash-sidebar {
+        transform: translateX(-100%);
+        top: 70px;
+        height: calc(100vh - 70px);
+    }
+
+    .dash-sidebar-open {
+        transform: translateX(0);
+    }
+
+    .dash-overlay {
+        top: 70px;
+    }
+}
+
+
+
+import React, { useState } from "react";
+import Navbar from "../Navabar/Navbar";
+import Sidebar from "../Sidebar/Sidebar";
+import Footer from "../Footer/Footer";
+import "./Layout.css";
+
+const Layout = ({ children }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [adminName] = useState("Admin");
+
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  return (
+    <div className="app-container">
+      <Navbar 
+        sidebarOpen={sidebarOpen} 
+        toggleSidebar={toggleSidebar} 
+        adminName={adminName} 
+      />
+      <Sidebar sidebarOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
+      <main className={`main-content ${sidebarOpen ? "main-content-shifted" : ""}`}>
+        {children}
+        <Footer />
+      </main>
+    </div>
+  );
+};
+
+export default Layout;
+
+/* Layout Container */
+.app-container {
+    min-height: 100vh;
+    background: #ffffff;
+    font-family: Arial, sans-serif;
+}
+
+/* Main Content */
+.main-content {
+    margin-left: 260px;
+    margin-top: 80px;
+    padding: 40px;
+    padding-bottom: 0;
+    transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: calc(100vh - 80px);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .main-content {
+        margin-left: 0;
+        margin-top: 70px;
+        padding: 24px 16px;
+        padding-bottom: 0;
+    }
+}
+
+          
+
