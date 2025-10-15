@@ -27,3 +27,2096 @@
 </html>
 
 
+
+import React, { useState } from 'react';
+import { FileText, User, Phone, Calendar, CheckCircle, XCircle, Filter, X, Search, Eye, ArrowLeft, Download } from 'lucide-react';
+
+// ✅ Correct way
+import VerificationDetails from './VerificationDetails';
+
+
+import './DocumentVerification.css'
+// Mock data
+const mockApplications = [
+  {
+    id: 'APP001',
+    userName: 'John Doe',
+    email: 'john.doe@example.com',
+    phone: '+91 9876543210',
+    submittedDate: '2024-10-10',
+    status: 'inprogress',
+    cardType: 'aadhar',
+    documents: [
+      { name: 'aadhar_front.jpg', size: '2.3 MB', type: 'Aadhar Front' },
+      { name: 'aadhar_back.jpg', size: '2.1 MB', type: 'Aadhar Back' }
+    ]
+  },
+  {
+    id: 'APP002',
+    userName: 'Jane Smith',
+    email: 'jane.smith@example.com',
+    phone: '+91 9123456789',
+    submittedDate: '2024-10-12',
+    status: 'approved',
+    cardType: 'pan',
+    documents: [
+      { name: 'pan_card.jpg', size: '1.8 MB', type: 'PAN Card' }
+    ]
+  },
+  {
+    id: 'APP003',
+    userName: 'Mike Johnson',
+    email: 'mike.j@example.com',
+    phone: '+91 8888877777',
+    submittedDate: '2024-10-13',
+    status: 'rejected',
+    rejectionReason: 'Document image is blurry and text is not readable',
+    cardType: 'passport',
+    documents: [
+      { name: 'passport.jpg', size: '3.2 MB', type: 'Passport' }
+    ]
+  },
+  {
+    id: 'APP004',
+    userName: 'Sarah Williams',
+    email: 'sarah.w@example.com',
+    phone: '+91 9999988888',
+    submittedDate: '2024-10-14',
+    status: 'inprogress',
+    cardType: 'driving_license',
+    documents: [
+      { name: 'dl_front.jpg', size: '2.5 MB', type: 'DL Front' },
+      { name: 'dl_back.jpg', size: '2.4 MB', type: 'DL Back' }
+    ]
+  }
+];
+
+const DocumentVerificationApp = () => {
+  const [view, setView] = useState('list'); // 'list' or 'details'
+  const [selectedApp, setSelectedApp] = useState(null);
+  const [applications, setApplications] = useState(mockApplications);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [selectedReason, setSelectedReason] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionError, setRejectionError] = useState('');
+  const [filters, setFilters] = useState({
+    search: '',
+    status: 'all',
+    cardType: 'all'
+  });
+
+  // Filter applications - search in all fields
+  const filteredApplications = applications.filter(app => {
+    const searchLower = filters.search.toLowerCase();
+    const matchesSearch = filters.search === '' || 
+                         app.userName.toLowerCase().includes(searchLower) ||
+                         app.id.toLowerCase().includes(searchLower) ||
+                         app.email.toLowerCase().includes(searchLower) ||
+                         app.phone.includes(filters.search) ||
+                         app.submittedDate.includes(filters.search) ||
+                         app.cardType.toLowerCase().includes(searchLower);
+    const matchesStatus = filters.status === 'all' || app.status === filters.status;
+    const matchesCardType = filters.cardType === 'all' || app.cardType === filters.cardType;
+    return matchesSearch && matchesStatus && matchesCardType;
+  });
+
+  // Statistics
+  const stats = {
+    total: applications.length,
+    pending: applications.filter(a => a.status === 'inprogress').length
+  };
+
+  const activeFiltersCount = Object.values(filters).filter(v => v !== '' && v !== 'all').length;
+
+  const handleVerify = (appId) => {
+    const app = applications.find(a => a.id === appId);
+    setSelectedApp(app);
+    setView('details');
+  };
+
+  const handleApprove = () => {
+    setApplications(prev => prev.map(app => 
+      app.id === selectedApp.id ? { ...app, status: 'approved' } : app
+    ));
+    setView('list');
+    setSelectedApp(null);
+  };
+
+  const handleReject = () => {
+    if (!rejectionReason.trim()) {
+      setRejectionError('Please provide a rejection reason');
+      return;
+    }
+    setApplications(prev => prev.map(app => 
+      app.id === selectedApp.id ? { ...app, status: 'rejected', rejectionReason } : app
+    ));
+    setShowRejectModal(false);
+    setRejectionReason('');
+    setRejectionError('');
+    setView('list');
+    setSelectedApp(null);
+  };
+
+  const resetFilters = () => {
+    setFilters({ search: '', status: 'all', cardType: 'all' });
+  };
+
+  const getStatusBadge = (status) => {
+    const badges = {
+      inprogress: { class: 'status-inprogress', icon: <Calendar size={16} />, text: 'In Progress' },
+      approved: { class: 'status-approved', icon: <CheckCircle size={16} />, text: 'Approved' },
+      rejected: { class: 'status-rejected', icon: <XCircle size={16} />, text: 'Rejected' }
+    };
+    const badge = badges[status];
+    return (
+      <span className={`status-badge ${badge.class}`}>
+        {badge.icon}
+        {badge.text}
+      </span>
+    );
+  };
+
+  if (view === 'details' && selectedApp) {
+    return <VerificationDetails 
+      application={selectedApp} 
+      onBack={() => { setView('list'); setSelectedApp(null); }}
+      onApprove={handleApprove}
+      onReject={() => setShowRejectModal(true)}
+      showRejectModal={showRejectModal}
+      setShowRejectModal={setShowRejectModal}
+      rejectionReason={rejectionReason}
+      setRejectionReason={setRejectionReason}
+      rejectionError={rejectionError}
+      setRejectionError={setRejectionError}
+      handleRejectSubmit={handleReject}
+    />;
+  }
+
+  return (
+    <div className="verification-container">
+      {/* Header */}
+      <header className="verification-header">
+        <div className="header-content">
+          <div className="header-left">
+            <h1 className="page-title">Document Verification</h1>
+            <p className="page-subtitle">Review and verify submitted documents</p>
+          </div>
+          <div className="header-stats">
+            <div className="stat-card">
+              <div className="stat-icon stat-icon-total">
+                <FileText size={24} />
+              </div>
+              <div className="stat-info">
+                <p className="stat-label">Total Applications</p>
+                <p className="stat-value">{stats.total}</p>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon stat-icon-pending">
+                <Calendar size={24} />
+              </div>
+              <div className="stat-info">
+                <p className="stat-label">Pending Review</p>
+                <p className="stat-value">{stats.pending}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <div className="verification-content">
+        {/* Filters */}
+        <div className="filters-section">
+          <div className="filters-header">
+            <button 
+              className={`filter-toggle-btn ${showFilters ? 'active' : ''}`}
+              onClick={() => setShowFilters(!showFilters)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem 1.5rem',
+                background: showFilters ? 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontSize: '0.95rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <Filter size={20} />
+              Filters
+              {activeFiltersCount > 0 && (
+                <span className="filter-count">{activeFiltersCount}</span>
+              )}
+            </button>
+            {activeFiltersCount > 0 && (
+              <button className="reset-filters-btn" onClick={resetFilters}>
+                <X size={16} />
+                Reset Filters
+              </button>
+            )}
+          </div>
+          <div className={`filters-content ${showFilters ? 'show' : ''}`}>
+            <div className="filter-grid">
+              <div className="filter-group">
+                <label className="filter-label">Search</label>
+                <div className="search-input-wrapper">
+                  <Search size={18} />
+                  <input
+                    type="text"
+                    className="filter-input"
+                    placeholder="Search by name, ID, email, phone, date..."
+                    value={filters.search}
+                    onChange={(e) => setFilters({...filters, search: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="filter-group">
+                <label className="filter-label">Status</label>
+                <select 
+                  className="filter-select"
+                  value={filters.status}
+                  onChange={(e) => setFilters({...filters, status: e.target.value})}
+                >
+                  <option value="all">All Status</option>
+                  <option value="inprogress">In Progress</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div className="filter-group">
+                <label className="filter-label">Card Type</label>
+                <select 
+                  className="filter-select"
+                  value={filters.cardType}
+                  onChange={(e) => setFilters({...filters, cardType: e.target.value})}
+                >
+                  <option value="all">All Types</option>
+                  <option value="aadhar">Gold</option>
+                  <option value="pan">Platinum</option>
+                  <option value="passport">silver</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="table-container">
+          <div className="table-wrapper">
+            {filteredApplications.length > 0 ? (
+              <table className="applications-table">
+                <thead>
+                  <tr>
+                    <th>Application ID</th>
+                    <th>User Name</th>
+                    <th>Phone</th>
+                    <th>Submitted Date</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredApplications.map((app, idx) => (
+                    <tr key={app.id} style={{animationDelay: `${idx * 0.05}s`}}>
+                      <td>
+                        <span className="app-id">{app.id}</span>
+                      </td>
+                      <td>
+                        <div className="user-name">{app.userName}</div>
+                      </td>
+                      <td>
+                        <span className="phone-text">{app.phone}</span>
+                      </td>
+                      <td>
+                        <span className="date-text">{app.submittedDate}</span>
+                      </td>
+                      <td>
+                        {getStatusBadge(app.status)}
+                      </td>
+                      <td>
+                        {app.status === 'inprogress' ? (
+                          <button className="verify-btn" onClick={() => handleVerify(app.id)}>
+                            <Eye size={18} />
+                            Verify
+                          </button>
+                        ) : app.status === 'approved' ? (
+                          <span className="action-verified">
+                            <CheckCircle size={18} />
+                            Verified
+                          </span>
+                        ) : (
+  <button 
+    className="view-reason-btn"
+    onClick={() => {
+      setSelectedReason(app.rejectionReason);
+      setShowReasonModal(true);
+    }}
+  >
+    <Eye size={18} />
+    View Reason
+  </button>
+)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state">
+                <FileText className="empty-icon" />
+                <h3 className="empty-title">No Applications Found</h3>
+                <p className="empty-subtitle">Try adjusting your filters</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Reason Modal */}
+      {showReasonModal && (
+        <div className="modal-overlay" onClick={() => setShowReasonModal(false)}>
+          <div className="simple-reason-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="simple-modal-header">
+              <div className="reason-icon-wrapper">
+                <XCircle size={24} />
+              </div>
+              <h3 className="simple-modal-title">Rejection Reason</h3>
+              <button className="simple-modal-close" onClick={() => setShowReasonModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="simple-modal-body">
+              <div className="reason-box">
+                <p className="reason-text">{selectedReason}</p>
+              </div>
+            </div>
+            <div className="simple-modal-footer">
+              <button className="simple-close-btn" onClick={() => setShowReasonModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default DocumentVerificationApp;
+
+
+
+/* ===== Document Verification Styles ===== */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.verification-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    padding: 2rem;
+    animation: fadeIn 0.6s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ===== Header Section ===== */
+.verification-header {
+    margin-bottom: 2rem;
+    animation: slideDown 0.5s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.header-content {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.header-left {
+    flex: 1;
+}
+
+.page-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0 0 0.5rem 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.page-subtitle {
+    font-size: 1rem;
+    color: #718096;
+    margin: 0;
+}
+
+.header-stats {
+    display: flex;
+    gap: 1rem;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #f6f8fb 0%, #ffffff 100%);
+    border-radius: 12px;
+    border: 2px solid #e2e8f0;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-icon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%) translateY(-100%);
+    }
+
+    100% {
+        transform: translateX(100%) translateY(100%);
+    }
+}
+
+.stat-icon-total {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.stat-icon-pending {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.stat-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: #718096;
+    margin: 0;
+    font-weight: 500;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0;
+}
+
+/* ===== Content Area ===== */
+.verification-content {
+    animation: fadeInUp 0.6s ease 0.2s both;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ===== Filters Section ===== */
+.filters-section {
+    background: white;
+    border-radius: 20px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+}
+
+.filters-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.filter-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.filter-toggle-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+}
+
+.filter-toggle-btn:hover::before {
+    transform: translateX(100%);
+}
+
+.filter-toggle-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.filter-toggle-btn.active {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.filter-count {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.reset-filters-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    background: #f7fafc;
+    color: #718096;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.reset-filters-btn:hover {
+    background: #edf2f7;
+    border-color: #cbd5e0;
+    transform: translateY(-2px);
+}
+
+.filters-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s ease;
+    opacity: 0;
+}
+
+.filters-content.show {
+    max-height: 500px;
+    opacity: 1;
+    margin-top: 1rem;
+}
+
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.25rem;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.filter-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-input-wrapper svg {
+    position: absolute;
+    left: 1rem;
+    color: #a0aec0;
+    pointer-events: none;
+}
+
+.filter-input {
+    width: 100%;
+    padding: 0.875rem 1rem 0.875rem 3rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    background: #f7fafc;
+}
+
+.filter-input:focus {
+    outline: none;
+    border-color: #667eea;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.filter-select {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    background: #f7fafc;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: #667eea;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* ===== Table Section ===== */
+.table-container {
+    background: white;
+    border-radius: 20px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    border-radius: 12px;
+}
+
+.applications-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.applications-table thead tr {
+    background: linear-gradient(135deg, #f6f8fb 0%, #edf2f7 100%);
+}
+
+.applications-table th {
+    padding: 1.25rem 1rem;
+    text-align: left;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.applications-table tbody tr {
+    transition: all 0.3s ease;
+    animation: slideInTable 0.5s ease both;
+    border-bottom: 1px solid #f7fafc;
+}
+
+@keyframes slideInTable {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.applications-table tbody tr:hover {
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    transform: scale(1.01);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.applications-table td {
+    padding: 1.25rem 1rem;
+    font-size: 0.95rem;
+    color: #2d3748;
+}
+
+.app-id {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    color: #667eea;
+    background: rgba(102, 126, 234, 0.1);
+    padding: 0.375rem 0.75rem;
+    border-radius: 8px;
+    display: inline-block;
+}
+
+.user-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
+.user-name {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.email-text {
+    color: #718096;
+}
+
+.phone-text {
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.date-text {
+    color: #718096;
+    font-size: 0.9rem;
+}
+
+/* ===== Status Badges ===== */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.status-inprogress {
+    background: linear-gradient(135deg, #fff5e6 0%, #ffe4b3 100%);
+    color: #d97706;
+    border: 2px solid #fbbf24;
+}
+
+.status-approved {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    color: #047857;
+    border: 2px solid #34d399;
+}
+
+.status-rejected {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #dc2626;
+    border: 2px solid #f87171;
+}
+
+/* ===== Action Buttons ===== */
+.verify-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.verify-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
+    transform: translateX(-100%) rotate(45deg);
+    transition: transform 0.5s ease;
+}
+
+.verify-btn:hover::before {
+    transform: translateX(100%) rotate(45deg);
+}
+
+.verify-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.action-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    color: #047857;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 2px solid #34d399;
+}
+.view-reason-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.view-reason-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
+    transform: translateX(-100%) rotate(45deg);
+    transition: transform 0.5s ease;
+}
+
+.view-reason-btn:hover::before {
+    transform: translateX(100%) rotate(45deg);
+}
+
+.view-reason-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(245, 87, 108, 0.4);
+}
+
+/* Simple Reason Modal Styles */
+.simple-reason-modal {
+    background: white;
+    border-radius: 16px;
+    padding: 0;
+    max-width: 480px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalSlideUp 0.3s ease-out;
+    overflow: hidden;
+}
+
+.simple-modal-header {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+}
+
+.reason-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+}
+
+.simple-modal-title {
+    color: white;
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+    flex: 1;
+}
+
+.simple-modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.simple-modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+.simple-modal-body {
+    padding: 2rem 1.5rem;
+}
+
+.reason-box {
+    background: #f8f9fa;
+    border-left: 4px solid #f5576c;
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.reason-text {
+    color: #2d3748;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.simple-modal-footer {
+    padding: 1rem 1.5rem 1.5rem;
+    display: flex;
+    justify-content: center;
+}
+
+.simple-close-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.simple-close-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.simple-close-btn:active {
+    transform: translateY(0);
+}
+
+@keyframes modalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .simple-reason-modal {
+        width: 95%;
+        max-width: none;
+    }
+
+    .simple-modal-header {
+        padding: 1.25rem;
+    }
+
+    .reason-icon-wrapper {
+        width: 40px;
+        height: 40px;
+    }
+
+    .simple-modal-title {
+        font-size: 1.1rem;
+    }
+
+    .simple-modal-body {
+        padding: 1.5rem 1.25rem;
+    }
+
+    .reason-box {
+        padding: 1.25rem;
+    }
+}
+
+/* ===== Empty State ===== */
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    animation: fadeIn 0.5s ease;
+}
+
+.empty-icon {
+    margin: 0 auto 1.5rem;
+    width: 80px;
+    height: 80px;
+    color: #cbd5e0;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.empty-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2d3748;
+    margin: 0 0 0.5rem 0;
+}
+
+.empty-subtitle {
+    font-size: 1rem;
+    color: #718096;
+    margin: 0;
+}
+
+
+
+
+
+
+import { FileText, User, Phone, Calendar, CheckCircle, XCircle, Filter, X, Search, Eye, ArrowLeft, Download } from 'lucide-react';
+import React from 'react';
+import DocumentVerificationApp from './DocumentVerificationApp';
+const VerificationDetails = ({ 
+  application, 
+  onBack, 
+  onApprove, 
+  onReject,
+  showRejectModal,
+  setShowRejectModal,
+  rejectionReason,
+  setRejectionReason,
+  rejectionError,
+  setRejectionError,
+  handleRejectSubmit
+}) => {
+
+   
+  return (
+    <>
+      <div className="verification-details-container">
+        <div className="details-header">
+          <button className="back-btn" onClick={onBack}>
+            <ArrowLeft size={20} />
+            Back to List
+          </button>
+          <h1 className="details-title">Application Details</h1>
+        </div>
+
+        <div className="details-content">
+          {/* Application Info */}
+          <div className="details-card">
+            <div className="card-header">
+              <h2 className="card-title">Application Information</h2>
+              <span className="app-id-badge">{application.id}</span>
+            </div>
+            <div className="info-grid">
+              <div className="info-item">
+                <span className="info-label">Full Name</span>
+                <span className="info-value">{application.userName}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Email</span>
+                <span className="info-value">{application.email}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Phone</span>
+                <span className="info-value">{application.phone}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Card Type</span>
+                <span className="info-value card-type">{application.cardType.replace('_', ' ')}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Submitted Date</span>
+                <span className="info-value">{application.submittedDate}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Status</span>
+                <span className="info-value">{application.status}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Documents */}
+          <div className="details-card">
+            <div className="card-header">
+              <h2 className="card-title">Uploaded Documents</h2>
+            </div>
+            <div className="documents-grid">
+              {application.documents.map((doc, idx) => (
+                <div key={idx} className="document-item">
+                  <div className="document-icon">
+                    <FileText size={28} />
+                  </div>
+                  <div className="document-info">
+                    <p className="document-label">{doc.type}</p>
+                    <p className="document-name">{doc.name}</p>
+                    <p className="document-size">{doc.size}</p>
+                  </div>
+                  <button className="view-document-btn">
+                    <Eye size={20} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          {application.status === 'inprogress' && (
+            <div className="action-buttons">
+              <button className="reject-btn" onClick={onReject}>
+                <XCircle size={20} />
+                Reject Application
+              </button>
+              <button className="approve-btn" onClick={onApprove}>
+                <CheckCircle size={20} />
+                Approve Application
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Reject Application</h3>
+              <button className="modal-close" onClick={() => setShowRejectModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <label className="modal-label">Rejection Reason *</label>
+              <textarea
+                className={`modal-textarea ${rejectionError ? 'error' : ''}`}
+                rows="5"
+                placeholder="Enter the reason for rejection..."
+                value={rejectionReason}
+                onChange={(e) => {
+                  setRejectionReason(e.target.value);
+                  setRejectionError('');
+                }}
+              />
+              {rejectionError && <span className="error-text">{rejectionError}</span>}
+            </div>
+            <div className="modal-footer">
+              <button className="modal-cancel-btn" onClick={() => setShowRejectModal(false)}>
+                Cancel
+              </button>
+              <button className="modal-reject-btn" onClick={handleRejectSubmit}>
+                Reject Application
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default VerificationDetails;
+
+
+
+
+
+
+/* ===== Verification Details Page ===== */
+.verification-details-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    padding: 2rem;
+    animation: fadeIn 0.6s ease;
+}
+
+.details-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    animation: slideDown 0.5s ease;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    background: white;
+    color: #4a5568;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.back-btn:hover {
+    background: #f7fafc;
+    border-color: #cbd5e0;
+    transform: translateX(-3px);
+}
+
+.details-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.details-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    animation: fadeInUp 0.6s ease 0.2s both;
+}
+
+/* ===== Details Card ===== */
+.details-card {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    animation: slideInCard 0.5s ease both;
+}
+
+@keyframes slideInCard {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.details-card:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.details-card:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.details-card:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.details-card:nth-child(4) {
+    animation-delay: 0.4s;
+}
+
+.details-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #f7fafc;
+}
+
+.card-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #2d3748;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.card-title::before {
+    content: '';
+    width: 4px;
+    height: 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 2px;
+}
+
+.app-id-badge {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 0.5rem 1rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    border-radius: 12px;
+    border: 2px solid #f1f5f9;
+    transition: all 0.3s ease;
+}
+
+.info-item:hover {
+    border-color: #e2e8f0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.info-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.info-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.info-value.card-type {
+    text-transform: capitalize;
+    display: inline-block;
+    padding: 0.375rem 0.75rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px;
+    width: fit-content;
+}
+
+/* ===== Documents Grid ===== */
+.documents-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+}
+
+.document-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.document-item:hover {
+    border-color: #667eea;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15);
+}
+
+.document-icon {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.document-icon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.3), transparent);
+    animation: shimmer 2s infinite;
+}
+
+.document-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.document-label {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #4a5568;
+    margin: 0 0 0.25rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.document-name {
+    font-size: 0.9rem;
+    color: #718096;
+    margin: 0 0 0.25rem 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.document-size {
+    font-size: 0.8rem;
+    color: #a0aec0;
+    margin: 0;
+}
+
+.view-document-btn {
+    width: 40px;
+    height: 40px;
+    background: #f7fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    color: #718096;
+}
+
+.view-document-btn:hover {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+    transform: scale(1.1);
+}
+
+/* ===== Action Buttons (Details Page) ===== */
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+    animation: slideInCard 0.5s ease 0.5s both;
+}
+
+.reject-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    background: white;
+    color: #dc2626;
+    border: 2px solid #dc2626;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.reject-btn:hover {
+    background: #dc2626;
+    color: white;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.3);
+}
+
+.approve-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.approve-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
+    transform: translateX(-100%) rotate(45deg);
+    transition: transform 0.5s ease;
+}
+
+.approve-btn:hover::before {
+    transform: translateX(100%) rotate(45deg);
+}
+
+.approve-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+}
+
+/* ===== Modal Styles ===== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+    animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.4s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 2rem;
+    border-bottom: 2px solid #f7fafc;
+}
+
+.modal-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2d3748;
+    margin: 0;
+}
+
+.modal-close {
+    width: 36px;
+    height: 36px;
+    background: #f7fafc;
+    border: none;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #718096;
+}
+
+.modal-close:hover {
+    background: #fee2e2;
+    color: #dc2626;
+    transform: rotate(90deg);
+}
+
+.modal-body {
+    padding: 2rem;
+}
+
+.modal-label {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.75rem;
+}
+
+.modal-textarea {
+    width: 100%;
+    padding: 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    resize: vertical;
+    transition: all 0.3s ease;
+    background: #f7fafc;
+}
+
+.modal-textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.modal-textarea.error {
+    border-color: #dc2626;
+    background: #fef2f2;
+}
+
+.error-text {
+    display: block;
+    color: #dc2626;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+    font-weight: 500;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 1.5rem 2rem;
+    border-top: 2px solid #f7fafc;
+}
+
+.modal-cancel-btn {
+    padding: 0.875rem 1.75rem;
+    background: white;
+    color: #718096;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.modal-cancel-btn:hover {
+    background: #f7fafc;
+    border-color: #cbd5e0;
+}
+
+.modal-reject-btn {
+    padding: 0.875rem 1.75rem;
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.modal-reject-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.4);
+}
+
+/* ===== Responsive Design ===== */
+@media (max-width: 1200px) {
+    .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .header-stats {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 768px) {
+    .verification-container {
+        padding: 1rem;
+    }
+
+    .header-content {
+        padding: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+    }
+
+    .header-stats {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .stat-card {
+        width: 100%;
+    }
+
+    .filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .applications-table {
+        min-width: 800px;
+    }
+
+    .applications-table th,
+    .applications-table td {
+        padding: 1rem 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .details-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .details-card {
+        padding: 1.5rem;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .documents-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .action-buttons {
+        flex-direction: column-reverse;
+    }
+
+    .reject-btn,
+    .approve-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .modal-content {
+        margin: 1rem;
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 1.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .verification-container {
+        padding: 0.75rem;
+    }
+
+    .page-title {
+        font-size: 1.25rem;
+    }
+
+    .page-subtitle {
+        font-size: 0.875rem;
+    }
+
+    .stat-value {
+        font-size: 1.25rem;
+    }
+
+    .filters-section {
+        padding: 1rem;
+    }
+
+    .table-container {
+        padding: 1rem;
+    }
+
+    .details-card {
+        padding: 1.25rem;
+    }
+
+    .card-title {
+        font-size: 1.1rem;
+    }
+}
+
+/* ===== Custom Scrollbar ===== */
+.table-wrapper::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+    background: #f7fafc;
+    border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+/* ===== Additional Utility Classes ===== */
+.fade-in {
+    animation: fadeIn 0.5s ease;
+}
+
+.slide-in-left {
+    animation: slideInLeft 0.5s ease;
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.slide-in-right {
+    animation: slideInRight 0.5s ease;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.bounce {
+    animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+/* ===== Loading States ===== */
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* ===== Focus Styles for Accessibility ===== */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
+/* ===== Print Styles ===== */
+@media print {
+    .verification-container {
+        background: white;
+        padding: 0;
+    }
+
+    .filters-section,
+    .action-buttons,
+    .verify-btn,
+    .back-btn {
+        display: none;
+    }
+
+    .details-card,
+    .table-container {
+        box-shadow: none;
+        page-break-inside: avoid;
+    }
+}
+
+
+
