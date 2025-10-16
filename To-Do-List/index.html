@@ -25,3 +25,2615 @@
 </body>
 
 </html>
+
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import './UserApplication.css';
+
+export const UserApplication = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    contactNumber: '',
+    cardType: 'gold',
+    address: '',
+    city: '',
+    pincode: '',
+    incomeTask: '',
+    aadharCard: null,
+    panCard: null,
+    incomeTaxProof: null
+  });
+
+  const [submittedData, setSubmittedData] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingApplicationId, setEditingApplicationId] = useState(null);
+  const [uploadingFiles, setUploadingFiles] = useState({
+    aadhar: false,
+    pan: false,
+    incomeTax: false
+  });
+  const [errors, setErrors] = useState({});
+  const [applicationHistory, setApplicationHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [hasActiveApplication, setHasActiveApplication] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+
+  useEffect(() => {
+    loadApplicationData();
+  }, []);
+
+  const loadApplicationData = () => {
+  // Load current active application
+  const saved = localStorage.getItem('creditCardApplication');
+  const allApplicationsData = localStorage.getItem('allApplications');
+  
+  if (allApplicationsData) {
+    const allApps = JSON.parse(allApplicationsData);
+    // Filter to show only approved applications in history
+    setApplicationHistory(allApps.filter(app => app.status === 'approved'));
+  }
+  
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    
+    // If approved, move to history and clear current
+    if (parsed.status === 'approved') {
+      const allApps = JSON.parse(localStorage.getItem('allApplications') || '[]');
+      const exists = allApps.find(app => app.id === parsed.id);
+      
+      if (!exists) {
+        allApps.unshift(parsed);
+        localStorage.setItem('allApplications', JSON.stringify(allApps));
+        setApplicationHistory(allApps.filter(app => app.status === 'approved'));
+      }
+      
+      localStorage.removeItem('creditCardApplication');
+      setSubmittedData(null);
+      setHasActiveApplication(false);
+      return;
+    }
+    
+    setSubmittedData(parsed);
+    
+    // Only block if in-process
+    if (parsed.status === 'in-process') {
+      setHasActiveApplication(true);
+    } else if (parsed.status === 'rejected') {
+      // Allow editing for rejected applications
+      setHasActiveApplication(false);
+    }
+  }
+
+  // Check if we're coming from edit button
+  if (location.state?.editApplication) {
+    const appToEdit = location.state.editApplication;
+    setIsEditing(true);
+    setEditingApplicationId(appToEdit.id);
+    setFormData({
+      firstName: appToEdit.firstName || '',
+      lastName: appToEdit.lastName || '',
+      email: appToEdit.email || '',
+      contactNumber: appToEdit.contactNumber || '',
+      cardType: appToEdit.cardType || 'gold',
+      address: appToEdit.address || '',
+      city: appToEdit.city || '',
+      pincode: appToEdit.pincode || '',
+      incomeTask: appToEdit.incomeTask || '',
+      aadharCard: appToEdit.aadharCard || null,
+      panCard: appToEdit.panCard || null,
+      incomeTaxProof: appToEdit.incomeTaxProof || null
+    });
+    setHasActiveApplication(false);
+    // Clear the location state
+    window.history.replaceState({}, document.title);
+  }
+};
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleFileChange = (e, type) => {
+    const file = e.target.files[0];
+    if (file) {
+      setUploadingFiles(prev => ({ ...prev, [type]: true }));
+      
+      setTimeout(() => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const fieldName = type === 'aadhar' ? 'aadharCard' : type === 'pan' ? 'panCard' : 'incomeTaxProof';
+          setFormData(prev => ({
+            ...prev,
+            [fieldName]: {
+              name: file.name,
+              data: reader.result
+            }
+          }));
+          setUploadingFiles(prev => ({ ...prev, [type]: false }));
+        };
+        reader.readAsDataURL(file);
+      }, 1500);
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email is invalid';
+    if (!formData.contactNumber.trim()) newErrors.contactNumber = 'Contact number is required';
+    else if (!/^\d{10}$/.test(formData.contactNumber)) newErrors.contactNumber = 'Contact number must be 10 digits';
+    if (!formData.address.trim()) newErrors.address = 'Address is required';
+    if (!formData.city.trim()) newErrors.city = 'City is required';
+    if (!formData.pincode.trim()) newErrors.pincode = 'Pincode is required';
+    else if (!/^\d{6}$/.test(formData.pincode)) newErrors.pincode = 'Pincode must be 6 digits';
+    if (!formData.incomeTask.trim()) newErrors.incomeTask = 'Income details are required';
+    if (!formData.aadharCard) newErrors.aadharCard = 'Aadhar card is required';
+    if (!formData.panCard) newErrors.panCard = 'PAN card is required';
+    if (!formData.incomeTaxProof) newErrors.incomeTaxProof = 'Income tax proof is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e) => {
+  e.preventDefault();
+  if (validateForm()) {
+    const applicationId = editingApplicationId || Date.now().toString();
+    const dataToSave = {
+      ...formData,
+      id: applicationId,
+      submittedAt: new Date().toISOString(),
+      status: 'in-process'
+    };
+    
+    // Save current application
+    localStorage.setItem('creditCardApplication', JSON.stringify(dataToSave));
+    
+    // Add to history
+    const allApps = JSON.parse(localStorage.getItem('allApplications') || '[]');
+    if (editingApplicationId) {
+      // Update existing application in history
+      const updatedApps = allApps.map(app => 
+        app.id === editingApplicationId ? dataToSave : app
+      );
+      localStorage.setItem('allApplications', JSON.stringify(updatedApps));
+      setApplicationHistory(updatedApps);
+    } else {
+      // Add new application to history
+      allApps.unshift(dataToSave); // Add to beginning
+      localStorage.setItem('allApplications', JSON.stringify(allApps));
+      setApplicationHistory(allApps);
+    }
+      setSubmittedData(dataToSave);
+      setIsEditing(false);
+      setEditingApplicationId(null);
+      setHasActiveApplication(true);
+      setShowSuccessMessage(true);
+      
+      // Hide success message after 3 seconds
+      setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 3000);
+      
+      // Reset form
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        contactNumber: '',
+        cardType: 'gold',
+        address: '',
+        city: '',
+        pincode: '',
+        incomeTask: '',
+        aadharCard: null,
+        panCard: null,
+        incomeTaxProof: null
+      });
+    }
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditingApplicationId(null);
+    setFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      contactNumber: '',
+      cardType: 'gold',
+      address: '',
+      city: '',
+      pincode: '',
+      incomeTask: '',
+      aadharCard: null,
+      panCard: null,
+      incomeTaxProof: null
+    });
+  };
+
+  const handleNewApplication = () => {
+    // Clear current application from localStorage
+    localStorage.removeItem('creditCardApplication');
+    
+    setIsEditing(false);
+    setEditingApplicationId(null);
+    setShowHistory(false);
+    setHasActiveApplication(false);
+    setSubmittedData(null);
+    setShowSuccessMessage(false);
+    setFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      contactNumber: '',
+      cardType: 'gold',
+      address: '',
+      city: '',
+      pincode: '',
+      incomeTask: '',
+      aadharCard: null,
+      panCard: null,
+      incomeTaxProof: null
+    });
+  };
+
+  const toggleHistory = () => {
+    setShowHistory(!showHistory);
+  };
+
+  const getStatusBadgeClass = (status) => {
+    switch(status) {
+      case 'approved': return 'status-approved';
+      case 'rejected': return 'status-rejected';
+      case 'in-process': return 'status-process';
+      default: return '';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch(status) {
+      case 'approved': return 'Approved';
+      case 'rejected': return 'Rejected';
+      case 'in-process': return 'In Process';
+      default: return status;
+    }
+  };
+
+ 
+
+  return (
+    <div className="application-container">
+      {/* Success Message */}
+      {showSuccessMessage && (
+        <div className="success-toast">
+          <div className="success-toast-content">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M9 12l2 2 4-4"/>
+              <circle cx="12" cy="12" r="10"/>
+            </svg>
+            <span>Application submitted successfully! Check status page for updates.</span>
+          </div>
+        </div>
+      )}
+
+      <div className="form-header">
+        <h1 className="form-title">Credit Card Application</h1>
+        <p className="form-subtitle">
+          {isEditing ? 'Edit and resubmit your application' : 'Fill in your details to apply for a credit card'}
+        </p>
+      </div>
+
+      {/* Application History Toggle */}
+      {applicationHistory.length > 0 && !isEditing && (
+        <div className="history-toggle-section">
+          <button className="history-toggle-btn" onClick={toggleHistory}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            {showHistory ? 'Hide' : 'View'} Application History ({applicationHistory.length})
+          </button>
+        </div>
+      )}
+
+      {/* Application History */}
+      {showHistory && applicationHistory.length > 0 && (
+        <div className="history-container">
+          <h2 className="history-title">Previous Applications</h2>
+          <div className="history-list">
+            {applicationHistory.map((app) => (
+              <div key={app.id} className="history-card">
+                <div className="history-header">
+                  <div className="history-info">
+                    <h3 className="history-name">{app.firstName} {app.lastName}</h3>
+                    <p className="history-date">
+                      Application ID: {app.id}
+                    </p>
+                    <p className="history-date">
+                      {new Date(app.submittedAt).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                  <span className={`status-badge ${getStatusBadgeClass(app.status)}`}>
+                    {getStatusText(app.status)}
+                  </span>
+                </div>
+                
+                <div className="history-details">
+                  <div className="history-detail-item">
+                    <span className="history-label">Card Type:</span>
+                    <span className="history-value">{app.cardType}</span>
+                  </div>
+                  <div className="history-detail-item">
+                    <span className="history-label">Email:</span>
+                    <span className="history-value">{app.email}</span>
+                  </div>
+                  <div className="history-detail-item">
+                    <span className="history-label">Contact:</span>
+                    <span className="history-value">{app.contactNumber}</span>
+                  </div>
+                </div>
+
+                {app.rejectionReason && (
+                  <div className="rejection-info">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="8" x2="12" y2="12"/>
+                      <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span className="rejection-text">{app.rejectionReason}</span>
+                  </div>
+                )}
+
+                
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Block new application if there's an active one */}
+      {hasActiveApplication && !isEditing && submittedData?.status === 'in-process' ? (
+  <div className="active-application-block">
+    <div className="block-icon">
+      <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <h2 className="block-title">Application In Progress</h2>
+    <p className="block-message">
+      You already have an active credit card application being processed. 
+      You cannot submit a new application until your current one is completed.
+    </p>
+    <div className="block-actions">
+      <button className="view-status-btn" onClick={() => navigate('/status')}>
+        View Application Status
+      </button>
+    </div>
+  </div>
+) : submittedData?.status === 'rejected' && !isEditing ? (
+  <div className="active-application-block">
+    <div className="block-icon">
+      <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <h2 className="block-title">Application Rejected</h2>
+    <p className="block-message">
+      Your application was rejected. {submittedData.rejectionReason}
+    </p>
+    <div className="block-actions">
+      <button 
+        className="edit-application-btn" 
+        onClick={() => {
+          setIsEditing(true);
+          setEditingApplicationId(submittedData.id);
+          setFormData({
+            firstName: submittedData.firstName || '',
+            lastName: submittedData.lastName || '',
+            email: submittedData.email || '',
+            contactNumber: submittedData.contactNumber || '',
+            cardType: submittedData.cardType || 'gold',
+            address: submittedData.address || '',
+            city: submittedData.city || '',
+            pincode: submittedData.pincode || '',
+            incomeTask: submittedData.incomeTask || '',
+            aadharCard: submittedData.aadharCard || null,
+            panCard: submittedData.panCard || null,
+            incomeTaxProof: submittedData.incomeTaxProof || null
+          });
+          setHasActiveApplication(false);
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        Edit & Resubmit Application
+      </button>
+    </div>
+  </div>
+) : (
+        <form onSubmit={handleSubmit} className="application-form">
+          <div className="form-section">
+            <h3 className="section-title">Personal Information</h3>
+            
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">First Name *</label>
+                <input
+                  type="text"
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleInputChange}
+                  className={`form-input ${errors.firstName ? 'error' : ''}`}
+                  placeholder="John"
+                />
+                {errors.firstName && <span className="error-text">{errors.firstName}</span>}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Last Name *</label>
+                <input
+                  type="text"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleInputChange}
+                  className={`form-input ${errors.lastName ? 'error' : ''}`}
+                  placeholder="Doe"
+                />
+                {errors.lastName && <span className="error-text">{errors.lastName}</span>}
+              </div>
+            </div>
+
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Email Address *</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className={`form-input ${errors.email ? 'error' : ''}`}
+                  placeholder="john.doe@example.com"
+                />
+                {errors.email && <span className="error-text">{errors.email}</span>}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Contact Number *</label>
+                <input
+                  type="tel"
+                  name="contactNumber"
+                  value={formData.contactNumber}
+                  onChange={handleInputChange}
+                  className={`form-input ${errors.contactNumber ? 'error' : ''}`}
+                  placeholder="9876543210"
+                  maxLength="10"
+                />
+                {errors.contactNumber && <span className="error-text">{errors.contactNumber}</span>}
+              </div>
+            </div>
+          </div>
+
+          <div className="form-section">
+            <h3 className="section-title">Address Details</h3>
+            
+            <div className="form-group">
+              <label className="form-label">Address *</label>
+              <textarea
+                name="address"
+                value={formData.address}
+                onChange={handleInputChange}
+                className={`form-input ${errors.address ? 'error' : ''}`}
+                placeholder="Enter your complete address"
+                rows="3"
+              />
+              {errors.address && <span className="error-text">{errors.address}</span>}
+            </div>
+
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">City *</label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  className={`form-input ${errors.city ? 'error' : ''}`}
+                  placeholder="Mumbai"
+                />
+                {errors.city && <span className="error-text">{errors.city}</span>}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Pincode *</label>
+                <input
+                  type="text"
+                  name="pincode"
+                  value={formData.pincode}
+                  onChange={handleInputChange}
+                  className={`form-input ${errors.pincode ? 'error' : ''}`}
+                  placeholder="400001"
+                  maxLength="6"
+                />
+                {errors.pincode && <span className="error-text">{errors.pincode}</span>}
+              </div>
+            </div>
+          </div>
+
+          <div className="form-section">
+            <h3 className="section-title">Card & Income Details</h3>
+            
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Card Type *</label>
+                <div className="select-wrapper">
+                  <select
+                    name="cardType"
+                    value={formData.cardType}
+                    onChange={handleInputChange}
+                    className="form-select"
+                  >
+                    <option value="gold">Gold Card</option>
+                    <option value="silver">Silver Card</option>
+                    <option value="platinum">Platinum Card</option>
+                  </select>
+                  <svg className="select-arrow" width="12" height="8" viewBox="0 0 12 8" fill="none">
+                    <path d="M1 1L6 6L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Annual Income *</label>
+                <input
+                  type="text"
+                  name="incomeTask"
+                  value={formData.incomeTask}
+                  onChange={handleInputChange}
+                  className={`form-input ${errors.incomeTask ? 'error' : ''}`}
+                  placeholder="e.g., ₹5,00,000"
+                />
+                {errors.incomeTask && <span className="error-text">{errors.incomeTask}</span>}
+              </div>
+            </div>
+          </div>
+
+          <div className="form-section">
+            <h3 className="section-title">Document Upload</h3>
+            
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Aadhar Card *</label>
+                <div className={`file-upload ${errors.aadharCard ? 'error' : ''}`}>
+                  <input
+                    type="file"
+                    id="aadhar"
+                    accept="image/*,.pdf"
+                    onChange={(e) => handleFileChange(e, 'aadhar')}
+                    className="file-input"
+                  />
+                  <label htmlFor="aadhar" className="file-label">
+                    {uploadingFiles.aadhar ? (
+                      <div className="upload-loading">
+                        <div className="spinner"></div>
+                        <span>Uploading...</span>
+                      </div>
+                    ) : formData.aadharCard ? (
+                      <div className="file-uploaded">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path d="M9 12l2 2 4-4"/>
+                          <circle cx="12" cy="12" r="10"/>
+                        </svg>
+                        <span>{formData.aadharCard.name}</span>
+                      </div>
+                    ) : (
+                      <div className="file-placeholder">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                          <polyline points="17 8 12 3 7 8"/>
+                          <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <span>Upload Aadhar Card</span>
+                      </div>
+                    )}
+                  </label>
+                </div>
+                {errors.aadharCard && <span className="error-text">{errors.aadharCard}</span>}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">PAN Card *</label>
+                <div className={`file-upload ${errors.panCard ? 'error' : ''}`}>
+                  <input
+                    type="file"
+                    id="pan"
+                    accept="image/*,.pdf"
+                    onChange={(e) => handleFileChange(e, 'pan')}
+                    className="file-input"
+                  />
+                  <label htmlFor="pan" className="file-label">
+                    {uploadingFiles.pan ? (
+                      <div className="upload-loading">
+                        <div className="spinner"></div>
+                        <span>Uploading...</span>
+                      </div>
+                    ) : formData.panCard ? (
+                      <div className="file-uploaded">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path d="M9 12l2 2 4-4"/>
+                          <circle cx="12" cy="12" r="10"/>
+                        </svg>
+                        <span>{formData.panCard.name}</span>
+                      </div>
+                    ) : (
+                      <div className="file-placeholder">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                          <polyline points="17 8 12 3 7 8"/>
+                          <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <span>Upload PAN Card</span>
+                      </div>
+                    )}
+                  </label>
+                </div>
+                {errors.panCard && <span className="error-text">{errors.panCard}</span>}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Income Tax Proof *</label>
+              <div className={`file-upload ${errors.incomeTaxProof ? 'error' : ''}`}>
+                <input
+                  type="file"
+                  id="incomeTax"
+                  accept="image/*,.pdf"
+                  onChange={(e) => handleFileChange(e, 'incomeTax')}
+                  className="file-input"
+                />
+                <label htmlFor="incomeTax" className="file-label">
+                  {uploadingFiles.incomeTax ? (
+                    <div className="upload-loading">
+                      <div className="spinner"></div>
+                      <span>Uploading...</span>
+                    </div>
+                  ) : formData.incomeTaxProof ? (
+                    <div className="file-uploaded">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M9 12l2 2 4-4"/>
+                        <circle cx="12" cy="12" r="10"/>
+                      </svg>
+                      <span>{formData.incomeTaxProof.name}</span>
+                    </div>
+                  ) : (
+                    <div className="file-placeholder">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                      </svg>
+                      <span>Upload Income Tax Proof</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+              {errors.incomeTaxProof && <span className="error-text">{errors.incomeTaxProof}</span>}
+            </div>
+          </div>
+
+          <div className="form-actions">
+            {isEditing && (
+              <button type="button" className="cancel-button" onClick={handleCancel}>
+                Cancel
+              </button>
+            )}
+            <button type="submit" className="submit-button">
+              <span>{isEditing ? 'Resubmit Application' : 'Submit Application'}</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+};
+
+
+
+
+
+
+
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.application-container {
+    min-height: 100vh;
+    background: #ffffff;
+    padding: 40px 20px;
+}
+
+.form-header {
+    text-align: center;
+    margin-bottom: 50px;
+    padding-top: 20px;
+}
+
+.form-title {
+    font-size: 36px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+}
+
+.form-subtitle {
+    color: #666666;
+    font-size: 16px;
+}
+
+/* History Toggle Section */
+.history-toggle-section {
+    max-width: 1000px;
+    margin: 0 auto 30px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.history-toggle-btn {
+    padding: 10px 20px;
+    background: #f5f5f5;
+    border: 2px solid #e5e5e5;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333333;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.history-toggle-btn:hover {
+    background: #e5e5e5;
+    border-color: #d4d4d4;
+}
+
+.history-toggle-btn svg {
+    stroke-width: 2;
+}
+
+/* Application History */
+.history-container {
+    max-width: 1000px;
+    margin: 0 auto 40px;
+    padding: 30px;
+    background: #fafafa;
+    border-radius: 12px;
+    border: 1px solid #e5e5e5;
+}
+
+.history-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 20px;
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.history-card {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.2s ease;
+}
+
+.history-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.history-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.history-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.history-date {
+    font-size: 13px;
+    color: #666666;
+}
+
+.status-badge {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-approved {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.status-rejected {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.status-process {
+    background: #fef3c7;
+    color: #f59e0b;
+}
+
+.history-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.history-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.history-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.history-value {
+    font-size: 14px;
+    color: #1a1a1a;
+    font-weight: 500;
+}
+
+.rejection-info {
+    margin-top: 12px;
+    padding: 12px;
+    background: #fef2f2;
+    border-left: 3px solid #dc2626;
+    border-radius: 4px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.rejection-info svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.rejection-text {
+    font-size: 13px;
+    color: #991b1b;
+    line-height: 1.5;
+}
+
+/* Active Application Block */
+.active-application-block {
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: center;
+    padding: 60px 40px;
+    background: #fafafa;
+    border-radius: 12px;
+    border: 1px solid #e5e5e5;
+}
+
+.block-icon {
+    margin-bottom: 24px;
+}
+
+.block-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 12px;
+}
+
+.block-message {
+    color: #666666;
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 24px;
+}
+
+.view-status-btn {
+    padding: 14px 32px;
+    background: #000000;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.view-status-btn:hover {
+    background: #1a1a1a;
+    transform: translateY(-1px);
+}
+
+.view-status-btn:active {
+    transform: scale(0.98);
+}
+
+/* Form Styles */
+.application-form {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 50px;
+}
+
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding-bottom: 30px;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.form-section:last-of-type {
+    border-bottom: none;
+}
+
+.section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333333;
+}
+
+.form-input,
+.form-select {
+    padding: 14px 16px;
+    border: 2px solid #d4d4d4;
+    border-radius: 8px;
+    font-size: 15px;
+    transition: all 0.2s ease;
+    outline: none;
+    background: #ffffff;
+    color: #1a1a1a;
+    font-family: inherit;
+}
+
+.form-input:focus,
+.form-select:focus {
+    border-color: #000000;
+}
+
+.form-input.error,
+.form-select.error {
+    border-color: #dc2626;
+}
+
+textarea.form-input {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.error-text {
+    color: #dc2626;
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.select-wrapper {
+    position: relative;
+}
+
+.form-select {
+    width: 100%;
+    appearance: none;
+    padding-right: 40px;
+    cursor: pointer;
+}
+
+.select-arrow {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #666666;
+}
+
+.file-upload {
+    position: relative;
+}
+
+.file-input {
+    display: none;
+}
+
+.file-label {
+    display: block;
+    padding: 24px;
+    border: 2px dashed #d4d4d4;
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #fafafa;
+}
+
+.file-label:hover {
+    border-color: #000000;
+    background: #f5f5f5;
+}
+
+.file-upload.error .file-label {
+    border-color: #dc2626;
+}
+
+.file-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #666666;
+}
+
+.file-placeholder svg {
+    stroke-width: 2;
+}
+
+.upload-loading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: center;
+    color: #1a1a1a;
+    font-weight: 500;
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #e5e5e5;
+    border-top-color: #1a1a1a;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.file-uploaded {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: center;
+    color: #16a34a;
+    font-weight: 500;
+}
+
+.file-uploaded svg {
+    stroke-width: 2;
+}
+
+.form-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    max-width: 1000px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.submit-button,
+.cancel-button,
+.edit-button {
+    padding: 14px 32px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+}
+
+.submit-button {
+    background: #000000;
+    color: white;
+    flex: 1;
+    max-width: 300px;
+}
+
+.submit-button:hover {
+    background: #1a1a1a;
+}
+
+.submit-button:active {
+    transform: scale(0.98);
+}
+
+.cancel-button {
+    background: #f5f5f5;
+    color: #666666;
+    border: 2px solid #e5e5e5;
+}
+
+.cancel-button:hover {
+    background: #e5e5e5;
+}
+
+.submitted-card {
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+    padding: 60px 40px;
+    background: #fafafa;
+    border-radius: 12px;
+    border: 1px solid #e5e5e5;
+}
+
+.success-icon {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 32px;
+}
+
+.success-circle {
+    stroke: #16a34a;
+    stroke-width: 2;
+    stroke-dasharray: 166;
+    stroke-dashoffset: 166;
+    animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.success-check {
+    stroke: #16a34a;
+    stroke-width: 2;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+@keyframes stroke {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.submitted-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+}
+
+.submitted-subtitle {
+    color: #666666;
+    font-size: 16px;
+    margin-bottom: 32px;
+}
+
+.submitted-details {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 32px;
+    margin-bottom: 32px;
+    text-align: left;
+    border: 1px solid #e5e5e5;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 16px 0;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    font-weight: 600;
+    color: #666666;
+    font-size: 14px;
+}
+
+.detail-value {
+    color: #1a1a1a;
+    font-weight: 500;
+    font-size: 14px;
+    text-align: right;
+}
+
+.file-name {
+    font-size: 13px;
+    color: #1a1a1a;
+}
+
+.edit-button {
+    background: #000000;
+    color: white;
+    margin: 0 auto;
+}
+
+.edit-button:hover {
+    background: #1a1a1a;
+}
+
+.edit-button svg {
+    stroke-width: 2;
+}
+
+.new-application-button {
+    padding: 14px 32px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    background: #000000;
+    color: white;
+    margin: 0 auto;
+}
+
+.new-application-button:hover {
+    background: #1a1a1a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.new-application-button:active {
+    transform: scale(0.98);
+}
+
+.new-application-button svg {
+    stroke-width: 2;
+}
+
+@media (max-width: 768px) {
+    .form-header {
+        margin-bottom: 40px;
+    }
+
+    .form-title {
+        font-size: 28px;
+    }
+
+    .application-form {
+        gap: 40px;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .section-title {
+        font-size: 18px;
+    }
+
+    .submitted-card {
+        padding: 40px 24px;
+    }
+
+    .detail-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .detail-value {
+        text-align: left;
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .submit-button {
+        max-width: 100%;
+    }
+
+    .history-toggle-section {
+        justify-content: center;
+    }
+
+    .history-container {
+        padding: 20px;
+    }
+
+    .history-header {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .history-details {
+        grid-template-columns: 1fr;
+    }
+
+    .active-application-block {
+        padding: 40px 24px;
+    }
+
+    .block-title {
+        font-size: 20px;
+    }
+}
+
+/* Success Toast Notification */
+.success-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #16a34a;
+    color: white;
+    padding: 16px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.success-toast-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.success-toast-content svg {
+    stroke-width: 2;
+    flex-shrink: 0;
+}
+
+/* Block Actions */
+.block-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.edit-application-btn {
+    padding: 14px 32px;
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    justify-content: center;
+}
+
+.edit-application-btn:hover {
+    background: #b91c1c;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.edit-application-btn:active {
+    transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+    .success-toast {
+        left: 20px;
+        right: 20px;
+    }
+
+    .block-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .block-actions button {
+        width: 100%;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import './UserStatus.css';
+
+const UserStatus = () => {
+  const navigate = useNavigate();
+  const [applicationData, setApplicationData] = useState(null);
+  const [currentStage, setCurrentStage] = useState(0);
+  const [rejectionInfo, setRejectionInfo] = useState(null);
+  const [canEdit, setCanEdit] = useState(false);
+
+  useEffect(() => {
+    loadApplicationStatus();
+  }, []);
+
+  const loadApplicationStatus = () => {
+    // Load only current active application
+    const saved = localStorage.getItem('creditCardApplication');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setApplicationData(parsed);
+      
+      // Check if rejected
+      if (parsed.status === 'rejected') {
+        setRejectionInfo({
+          stage: 2, // Always show rejection at stage 2
+          reason: parsed.rejectionReason || 'Document verification failed'
+        });
+        setCurrentStage(2);
+        setCanEdit(true);
+      } else if (parsed.status === 'in-process') {
+        // Show in-process at stage 2
+        setCurrentStage(2);
+        setCanEdit(true);
+        setRejectionInfo(null);
+      } else if (parsed.status === 'approved') {
+        // Show approved at stage 3
+        setCurrentStage(3);
+        setCanEdit(false);
+        setRejectionInfo(null);
+      }
+    }
+  };
+
+  const stages = [
+    {
+      id: 1,
+      title: 'Application Submitted',
+      description: 'Your application has been received successfully'
+    },
+    {
+      id: 2,
+      title: 'Document Verification',
+      description: 'All documents are being verified'
+    },
+    {
+      id: 3,
+      title: 'Offer Confirmation',
+      description: 'Your credit card has been approved'
+    }
+  ];
+
+  const handleEditApplication = () => {
+    if (!canEdit) {
+      return;
+    }
+
+    navigate('/apply', {
+      state: {
+        editApplication: applicationData
+      }
+    });
+  };
+
+  const handleNewApplication = () => {
+    // Clear current application
+    localStorage.removeItem('creditCardApplication');
+    
+    navigate('/application');
+  };
+
+  if (!applicationData) {
+    return (
+      <div className="status-container">
+        <div className="status-header">
+          <h1 className="status-title">Application Status</h1>
+          <p className="status-subtitle">Track your credit card application progress</p>
+        </div>
+        <div className="empty-state">
+          <div className="empty-icon">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#d4d4d4" strokeWidth="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <h2 className="empty-title">No Current Application</h2>
+          <p className="empty-description">
+            You don't have any active credit card application. 
+            Please submit your application to track its status.
+          </p>
+          <button className="apply-now-btn" onClick={() => navigate('/application')}>
+            Apply Now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="status-container">
+      <div className="status-header">
+        <h1 className="status-title">Application Status</h1>
+        <p className="status-subtitle">Track your credit card application progress</p>
+      </div>
+
+      <div className="status-card">
+        {/* Progress Timeline */}
+        <div className="progress-timeline">
+          {stages.map((stage, index) => {
+            const isCompleted = currentStage > stage.id;
+            const isCurrent = currentStage === stage.id;
+            const isRejected = rejectionInfo && rejectionInfo.stage === stage.id;
+
+            return (
+              <React.Fragment key={stage.id}>
+                <div className="progress-step">
+                  <div className={`progress-circle ${
+                    isRejected ? 'rejected' : 
+                    isCompleted ? 'completed' : 
+                    isCurrent ? 'current' : 'pending'
+                  }`}>
+                    {isRejected ? (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    ) : isCompleted ? (
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <span className="progress-number">{stage.id}</span>
+                    )}
+                  </div>
+                  <div className="progress-label">
+                    <h4 className={`progress-title ${
+                      isRejected ? 'rejected-text' :
+                      (isCompleted || isCurrent) ? 'active' : ''
+                    }`}>
+                      {stage.title}
+                    </h4>
+                    <p className={`progress-desc ${
+                      isRejected ? 'rejected-text' :
+                      (isCompleted || isCurrent) ? 'active' : ''
+                    }`}>
+                      {isRejected ? 'Verification Failed' : stage.description}
+                    </p>
+                  </div>
+                </div>
+                
+                {index < stages.length - 1 && (
+                  <div className={`progress-line ${
+                    isRejected ? 'rejected' :
+                    currentStage > stage.id ? 'completed' : 'pending'
+                  }`}></div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        {/* Edit Section at Stage 2 (In-Process) */}
+        {currentStage === 2 && !rejectionInfo && (
+          <div className="edit-section">
+            <div className="edit-info-box">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <div className="edit-info-content">
+                <h4 className="edit-info-title">Document Verification in Progress</h4>
+                <p className="edit-info-text">
+                  Your documents are currently being verified. If you need to update any information, you can edit your application.
+                </p>
+              </div>
+            </div>
+            <button className="edit-stage-btn" onClick={handleEditApplication}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              Edit Application
+            </button>
+          </div>
+        )}
+
+        {/* Rejection Alert */}
+        {rejectionInfo && (
+          <div className="rejection-alert">
+            <div className="rejection-icon">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div className="rejection-content">
+              <h3 className="rejection-title">Application Rejected</h3>
+              <p className="rejection-stage">
+                Rejected at: <strong>{stages[rejectionInfo.stage - 1]?.title}</strong>
+              </p>
+              <div className="rejection-reason">
+                <strong>Reason:</strong> {rejectionInfo.reason}
+              </div>
+              <button className="edit-application-btn" onClick={handleEditApplication}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Edit & Resubmit Application
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Application Details */}
+        <div className="applicant-info">
+          <h3 className="info-section-title">Application Details</h3>
+          <div className="info-grid">
+            <div className="info-item">
+              <span className="info-label">Applicant Name</span>
+              <span className="info-value">
+                {applicationData.firstName} {applicationData.lastName}
+              </span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Application ID</span>
+              <span className="info-value">
+                #{applicationData.id.slice(0, 10)}
+              </span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Email Address</span>
+              <span className="info-value">{applicationData.email}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Contact Number</span>
+              <span className="info-value">{applicationData.contactNumber}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Card Type</span>
+              <span className="info-badge">{applicationData.cardType}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Submitted On</span>
+              <span className="info-value">
+                {new Date(applicationData.submittedAt).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric'
+                })}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Success Banner */}
+        {currentStage === 3 && !rejectionInfo && (
+          <div className="success-banner">
+            <div className="success-icon-wrapper">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+            <div className="success-content">
+              <h3 className="success-title">🎉 Congratulations! Your Application is Approved</h3>
+              <p className="success-text">
+                Your credit card has been approved and will be delivered to your registered address within 5-7 business days.
+              </p>
+              <button className="new-application-button" onClick={handleNewApplication}>
+                Apply for New Card
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default UserStatus;
+
+
+
+
+
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.status-container {
+    min-height: 100vh;
+    background: #ffffff;
+    padding: 40px 20px;
+}
+
+.status-header {
+    text-align: center;
+    margin-bottom: 50px;
+    padding-top: 20px;
+}
+
+.status-title {
+    font-size: 36px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+}
+
+.status-subtitle {
+    color: #666666;
+    font-size: 16px;
+}
+
+/* Empty State */
+.empty-state {
+    max-width: 500px;
+    margin: 100px auto;
+    text-align: center;
+    padding: 60px 40px;
+}
+
+.empty-icon {
+    margin-bottom: 24px;
+}
+
+.empty-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 12px;
+}
+
+.empty-description {
+    color: #666666;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+/* Status Card */
+.status-card {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+/* Horizontal Progress Timeline */
+.progress-timeline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    background: #fafafa;
+    border-radius: 12px;
+    padding: 50px 40px;
+    border: 1px solid #e5e5e5;
+    margin-bottom: 40px;
+}
+
+.progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+}
+
+.progress-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    transition: all 0.4s ease;
+    z-index: 2;
+}
+
+.progress-circle.completed {
+    background: #16a34a;
+    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.3);
+    animation: checkmarkPop 0.4s ease-out;
+}
+
+.progress-circle.current {
+    background: #000000;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.progress-circle.rejected {
+    background: #dc2626;
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
+    animation: shakePulse 0.5s ease-out;
+}
+
+@keyframes checkmarkPop {
+    0% {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes shakePulse {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-5px);
+    }
+
+    75% {
+        transform: translateX(5px);
+    }
+}
+
+.progress-circle.pending {
+    background: #f5f5f5;
+    border: 3px solid #e5e5e5;
+}
+
+.progress-number {
+    font-size: 20px;
+    font-weight: 700;
+    color: #a3a3a3;
+}
+
+.progress-label {
+    text-align: center;
+    max-width: 200px;
+}
+
+.progress-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #a3a3a3;
+    margin-bottom: 6px;
+    transition: color 0.3s ease;
+}
+
+.progress-title.active {
+    color: #1a1a1a;
+}
+
+.progress-title.rejected-text {
+    color: #dc2626;
+}
+
+.progress-desc {
+    font-size: 13px;
+    color: #d4d4d4;
+    line-height: 1.4;
+    transition: color 0.3s ease;
+}
+
+.progress-desc.active {
+    color: #666666;
+}
+
+.progress-desc.rejected-text {
+    color: #dc2626;
+    font-weight: 500;
+}
+
+/* Progress Line */
+.progress-line {
+    flex: 1;
+    height: 4px;
+    align-self: flex-start;
+    margin-top: 28px;
+    margin-left: -8px;
+    margin-right: -8px;
+    border-radius: 2px;
+    transition: all 0.4s ease;
+}
+
+.progress-line.completed {
+    background: #16a34a;
+    animation: lineGrow 0.6s ease-out;
+}
+
+.progress-line.rejected {
+    background: #fca5a5;
+}
+
+@keyframes lineGrow {
+    0% {
+        transform: scaleX(0);
+        transform-origin: left;
+    }
+
+    100% {
+        transform: scaleX(1);
+        transform-origin: left;
+    }
+}
+
+.progress-line.pending {
+    background: #e5e5e5;
+}
+
+/* Edit Section - Shows at Document Verification Stage */
+.edit-section {
+    background: #fffbeb;
+    border: 2px solid #fde68a;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+}
+
+.edit-info-box {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    flex: 1;
+}
+
+.edit-info-box svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.edit-info-content {
+    flex: 1;
+}
+
+.edit-info-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #92400e;
+    margin-bottom: 6px;
+}
+
+.edit-info-text {
+    font-size: 14px;
+    color: #b45309;
+    line-height: 1.5;
+}
+
+.edit-stage-btn {
+    padding: 12px 24px;
+    background: #f59e0b;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.edit-stage-btn:hover {
+    background: #d97706;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.edit-stage-btn:active {
+    transform: translateY(0);
+}
+
+/* Rejection Alert */
+.rejection-alert {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    border: 2px solid #fca5a5;
+    border-radius: 12px;
+    padding: 32px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.1);
+}
+
+.rejection-icon {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    background: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+}
+
+.rejection-content {
+    flex: 1;
+}
+
+.rejection-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #991b1b;
+    margin-bottom: 8px;
+}
+
+.rejection-stage {
+    font-size: 14px;
+    color: #b91c1c;
+    margin-bottom: 12px;
+}
+
+.rejection-reason {
+    font-size: 15px;
+    color: #dc2626;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #ffffff;
+    border-radius: 8px;
+    border-left: 4px solid #dc2626;
+}
+
+.edit-application-btn {
+    padding: 12px 24px;
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.edit-application-btn:hover {
+    background: #b91c1c;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.edit-application-btn:active {
+    transform: translateY(0);
+}
+
+/* Final Rejection (Stage 3) - No Edit Option */
+.rejection-alert.final-rejection {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+}
+
+.final-rejection-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: #ffffff;
+    border-radius: 8px;
+    border-left: 4px solid #991b1b;
+}
+
+.final-rejection-note svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.final-rejection-note p {
+    font-size: 14px;
+    color: #991b1b;
+    line-height: 1.6;
+    font-weight: 500;
+}
+
+/* Application Info */
+.applicant-info {
+    background: #fafafa;
+    border-radius: 12px;
+    padding: 32px;
+    border: 1px solid #e5e5e5;
+    margin-bottom: 24px;
+}
+
+.info-section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #e5e5e5;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.info-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #666666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-value {
+    font-size: 16px;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+.info-badge {
+    display: inline-block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    background: #ffffff;
+    padding: 8px 16px;
+    border-radius: 8px;
+    text-transform: capitalize;
+    border: 2px solid #e5e5e5;
+    width: fit-content;
+}
+
+/* Success Banner */
+.success-banner {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 2px solid #86efac;
+    border-radius: 12px;
+    padding: 32px;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.1);
+}
+
+.success-icon-wrapper {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    background: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
+}
+
+.success-content {
+    flex: 1;
+}
+
+.success-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #166534;
+    margin-bottom: 8px;
+}
+
+.success-text {
+    font-size: 15px;
+    color: #15803d;
+    line-height: 1.6;
+}
+
+/* Test Controls */
+.test-controls {
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #f5f5f5;
+    border-radius: 8px;
+    border: 1px solid #e5e5e5;
+}
+
+.test-controls-title {
+    margin-bottom: 12px;
+    font-weight: 600;
+    color: #666666;
+    font-size: 14px;
+}
+
+.test-controls-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.test-btn {
+    padding: 10px 18px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    color: white;
+}
+
+.test-btn.reject-btn {
+    background: #dc2626;
+}
+
+.test-btn.reject-btn:hover {
+    background: #b91c1c;
+    transform: translateY(-1px);
+}
+
+.test-btn.approve-btn {
+    background: #16a34a;
+}
+
+.test-btn.approve-btn:hover {
+    background: #15803d;
+    transform: translateY(-1px);
+}
+
+.test-btn:active {
+    transform: translateY(0);
+}
+
+/* Responsive Design */
+@media (max-width: 968px) {
+    .progress-timeline {
+        padding: 40px 24px;
+    }
+
+    .progress-circle {
+        width: 50px;
+        height: 50px;
+    }
+
+    .progress-title {
+        font-size: 14px;
+    }
+
+    .progress-desc {
+        font-size: 12px;
+    }
+
+    .progress-line {
+        margin-top: 23px;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .edit-section {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .edit-stage-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .status-container {
+        padding: 20px 16px;
+    }
+
+    .status-header {
+        margin-bottom: 40px;
+    }
+
+    .status-title {
+        font-size: 28px;
+    }
+
+    .progress-timeline {
+        flex-direction: column;
+        padding: 32px 24px;
+        gap: 32px;
+    }
+
+    .progress-step {
+        width: 100%;
+        flex-direction: row;
+        gap: 20px;
+        align-items: flex-start;
+    }
+
+    .progress-circle {
+        margin-bottom: 0;
+        flex-shrink: 0;
+    }
+
+    .progress-label {
+        text-align: left;
+        max-width: 100%;
+    }
+
+    .progress-line {
+        display: none;
+    }
+
+    .progress-step::after {
+        content: '';
+        position: absolute;
+        left: 30px;
+        top: 70px;
+        width: 3px;
+        height: calc(100% + 12px);
+        background: #e5e5e5;
+    }
+
+    .progress-step:last-child::after {
+        display: none;
+    }
+
+    .applicant-info {
+        padding: 24px 20px;
+    }
+
+    .info-section-title {
+        font-size: 18px;
+    }
+
+    .edit-section {
+        padding: 20px;
+    }
+
+    .edit-info-title {
+        font-size: 15px;
+    }
+
+    .edit-info-text {
+        font-size: 13px;
+    }
+
+    .success-banner {
+        flex-direction: column;
+        padding: 24px;
+        text-align: center;
+    }
+
+    .rejection-alert {
+        flex-direction: column;
+        padding: 24px;
+        align-items: center;
+        text-align: center;
+    }
+
+    .rejection-content {
+        width: 100%;
+    }
+
+    .edit-application-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .success-title {
+        font-size: 18px;
+    }
+
+    .success-text {
+        font-size: 14px;
+    }
+
+    .empty-state {
+        padding: 40px 20px;
+    }
+
+    .empty-title {
+        font-size: 20px;
+    }
+
+    .empty-description {
+        font-size: 14px;
+    }
+
+    .success-toast {
+        left: 20px;
+        right: 20px;
+    }
+
+    .block-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .block-actions button {
+        width: 100%;
+    }
+}
+/* Apply Now Button */
+.apply-now-btn {
+    padding: 14px 32px;
+    background: #000000;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 24px;
+}
+
+.apply-now-btn:hover {
+    background: #1a1a1a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.apply-now-btn:active {
+    transform: scale(0.98);
+}
+
+/* New Application Button in Success Banner */
+.new-application-button {
+    padding: 12px 24px;
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.new-application-button:hover {
+    background: #15803d;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+
+.new-application-button:active {
+    transform: scale(0.98);
+}
+
+/* Responsive for new buttons */
+@media (max-width: 768px) {
+
+    .apply-now-btn,
+    .new-application-button {
+        width: 100%;
+    }
+}
+
