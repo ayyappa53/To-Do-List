@@ -32,482 +32,684 @@
 
 
 
+package com.credit.backend.security;
 
+import com.credit.backend.util.JwtUtil;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+import java.io.IOException;
 
-package com.credit.backend.dao;
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-import com.credit.backend.model.ApplicationSubmitter;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.stereotype.Repository;
-import java.util.List;
-import java.util.UUID;
+    @Autowired
+    private JwtUtil jwtUtil;
 
+    @Autowired
+    private UserDetailsService userDetailsService;
 
-@Repository
-public interface ApplicationSubmitterRepository extends JpaRepository<ApplicationSubmitter, UUID> {
-    @Query("SELECT a FROM ApplicationSubmitter a WHERE a.submittedByUserOrSalesId = :userId")
-    List<ApplicationSubmitter> findBySubmittedByUserOrSalesId(UUID userId);
-}
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws ServletException, IOException {
 
+        final String authorizationHeader = request.getHeader("Authorization");
 
+        String email = null;
+        String jwt = null;
 
+        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+            jwt = authorizationHeader.substring(7);
+            email = jwtUtil.extractEmail(jwt);
+        }
 
+        if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            UserDetails userDetails = this.userDetailsService.loadUserByUsername(email);
 
-package com.credit.backend.dto;
-
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApplicationDetailResponse {
-
-    private UUID appId;
-    private String fullName;
-    private String email;
-    private String phoneNumber;
-    private LocalDate dateOfBirth;
-    private String address;
-    private String aadhar;
-    private String pan;
-    private String incomeProof;
-    private String documentVerificationStatus;
-    private String offerStatus;
-    private String submittedByRole;
-    private UUID submittedById;
-    private LocalDateTime submittedAt;
-    private LocalDateTime updatedAt;
-}
-
-
-
-
-
-
-package com.credit.backend.dto;
-
-import jakarta.validation.constraints.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDate;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApplicationRequest {
-
-    @NotBlank(message = "Full name is required")
-    @Size(max = 100, message = "Full name must not exceed 100 characters")
-    private String fullName;
-
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email should be valid")
-    @Size(max = 100, message = "Email must not exceed 100 characters")
-    private String email;
-
-    @NotBlank(message = "Phone number is required")
-    @Pattern(regexp = "^[0-9]{10}$", message = "Phone number must be 10 digits")
-    private String phoneNumber;
-
-    @NotNull(message = "Date of birth is required")
-    @Past(message = "Date of birth must be in the past")
-    private LocalDate dateOfBirth;
-
-    @NotBlank(message = "Address is required")
-    private String address;
-
-    @NotBlank(message = "Aadhar is required")
-    @Pattern(regexp = "^[0-9]{12}$", message = "Aadhar must be 12 digits")
-    private String aadhar;
-
-    @NotBlank(message = "PAN is required")
-    @Pattern(regexp = "^[A-Z]{5}[0-9]{4}[A-Z]{1}$", message = "Invalid PAN format")
-    private String pan;
-
-    private String incomeProof;
-}
-
-
-
-package com.credit.backend.dto;
-
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.util.UUID;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class AuthResponse {
-
-    private String token;
-    private String type = "Bearer";
-    private UUID userId;
-    private String email;
-    private String firstName;
-    private String lastName;
-    private String role;
-
-    public AuthResponse(String token, UUID userId, String email, String firstName, String lastName, String role) {
-        this.token = token;
-        this.userId = userId;
-        this.email = email;
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.role = role;
+            if (jwtUtil.validateToken(jwt, userDetails.getUsername())) {
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                        userDetails, null, userDetails.getAuthorities());
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        }
+        chain.doFilter(request, response);
     }
 }
 
 
 
 
-package com.credit.backend.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.util.UUID;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class DocumentVerificationRequest {
+package com.credit.backend.service;
 
-    @NotNull(message = "Application ID is required")
-    private UUID appId;
+import com.credit.backend.dao.*;
+import com.credit.backend.dto.*;
+import com.credit.backend.model.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.*;
+import java.util.stream.Collectors;
 
-    @NotBlank(message = "Action is required (APPROVED/REJECTED)")
-    private String action; // APPROVED or REJECTED
+@Service
+public class ApplicationService {
 
-    private String rejectReason;
+    @Autowired
+    private ApplicationSubmitterRepository submitterRepository;
+
+    @Autowired
+    private ApplicationDetailsRepository detailsRepository;
+
+    @Autowired
+    private ApplicationStatusRepository statusRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Transactional
+    public ApplicationDetailResponse submitApplication(ApplicationRequest request, UUID userId, String role) {
+        // Create application submitter
+        ApplicationSubmitter submitter = new ApplicationSubmitter();
+        submitter.setSubmittedByUserOrSalesId(userId);
+        submitter.setSubmittedByRole(ApplicationSubmitter.SubmittedByRole.valueOf(role));
+        submitter = submitterRepository.save(submitter);
+
+        // Create application details
+        ApplicationDetails details = new ApplicationDetails();
+        details.setAppId(submitter.getAppId());
+        details.setFullName(request.getFullName());
+        details.setEmail(request.getEmail());
+        details.setPhoneNumber(request.getPhoneNumber());
+        details.setDateOfBirth(request.getDateOfBirth());
+        details.setAddress(request.getAddress());
+        details.setAadhar(request.getAadhar());
+        details.setPan(request.getPan());
+        details.setIncomeProof(request.getIncomeProof());
+        detailsRepository.save(details);
+
+        // Create application status
+        ApplicationStatus status = new ApplicationStatus();
+        status.setAppId(submitter.getAppId());
+        status.setDocumentVerificationStatus(ApplicationStatus.VerificationStatus.IN_PROGRESS);
+        status.setOfferStatus(ApplicationStatus.OfferStatus.IN_PROGRESS);
+        statusRepository.save(status);
+
+        return mapToDetailResponse(submitter, details, status);
+    }
+
+    @Transactional
+    public ApplicationDetailResponse updateApplication(UUID appId, ApplicationRequest request) {
+        ApplicationDetails details = detailsRepository.findByAppId(appId)
+                .orElseThrow(() -> new RuntimeException("Application not found"));
+
+        details.setFullName(request.getFullName());
+        details.setEmail(request.getEmail());
+        details.setPhoneNumber(request.getPhoneNumber());
+        details.setDateOfBirth(request.getDateOfBirth());
+        details.setAddress(request.getAddress());
+        details.setAadhar(request.getAadhar());
+        details.setPan(request.getPan());
+        details.setIncomeProof(request.getIncomeProof());
+        detailsRepository.save(details);
+
+        ApplicationSubmitter submitter = submitterRepository.findById(appId)
+                .orElseThrow(() -> new RuntimeException("Application not found"));
+        ApplicationStatus status = statusRepository.findByAppId(appId)
+                .orElseThrow(() -> new RuntimeException("Application status not found"));
+
+        return mapToDetailResponse(submitter, details, status);
+    }
+
+    public List<OnboardingResponse> getAllApplications() {
+        List<ApplicationSubmitter> submitters = submitterRepository.findAll();
+
+        return submitters.stream().map(submitter -> {
+            ApplicationDetails details = detailsRepository.findByAppId(submitter.getAppId()).orElse(null);
+            ApplicationStatus status = statusRepository.findByAppId(submitter.getAppId()).orElse(null);
+
+            OnboardingResponse response = new OnboardingResponse();
+            response.setAppId(submitter.getAppId());
+            response.setUserId(submitter.getSubmittedByUserOrSalesId());
+            response.setFullName(details != null ? details.getFullName() : "N/A");
+            response.setPhoneNumber(details != null ? details.getPhoneNumber() : "N/A");
+            response.setStatus(status != null ? status.getDocumentVerificationStatus().name() : "N/A");
+            response.setSubmittedBy(submitter.getSubmittedByRole().name());
+            response.setSubmittedAt(submitter.getSubmittedAt());
+
+            return response;
+        }).collect(Collectors.toList());
+    }
+
+    public ApplicationDetailResponse getApplicationById(UUID appId) {
+        ApplicationSubmitter submitter = submitterRepository.findById(appId)
+                .orElseThrow(() -> new RuntimeException("Application not found"));
+        ApplicationDetails details = detailsRepository.findByAppId(appId)
+                .orElseThrow(() -> new RuntimeException("Application details not found"));
+        ApplicationStatus status = statusRepository.findByAppId(appId)
+                .orElseThrow(() -> new RuntimeException("Application status not found"));
+
+        return mapToDetailResponse(submitter, details, status);
+    }
+
+    public List<ApplicationDetailResponse> getApplicationsByUserId(UUID userId) {
+        List<ApplicationSubmitter> submitters = submitterRepository.findBySubmittedByUserOrSalesId(userId);
+
+        return submitters.stream().map(submitter -> {
+            ApplicationDetails details = detailsRepository.findByAppId(submitter.getAppId()).orElse(null);
+            ApplicationStatus status = statusRepository.findByAppId(submitter.getAppId()).orElse(null);
+
+            if (details != null && status != null) {
+                return mapToDetailResponse(submitter, details, status);
+            }
+            return null;
+        }).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+
+    private ApplicationDetailResponse mapToDetailResponse(ApplicationSubmitter submitter,
+                                                          ApplicationDetails details,
+                                                          ApplicationStatus status) {
+        ApplicationDetailResponse response = new ApplicationDetailResponse();
+        response.setAppId(submitter.getAppId());
+        response.setFullName(details.getFullName());
+        response.setEmail(details.getEmail());
+        response.setPhoneNumber(details.getPhoneNumber());
+        response.setDateOfBirth(details.getDateOfBirth());
+        response.setAddress(details.getAddress());
+        response.setAadhar(details.getAadhar());
+        response.setPan(details.getPan());
+        response.setIncomeProof(details.getIncomeProof());
+        response.setDocumentVerificationStatus(status.getDocumentVerificationStatus().name());
+        response.setOfferStatus(status.getOfferStatus().name());
+        response.setSubmittedByRole(submitter.getSubmittedByRole().name());
+        response.setSubmittedById(submitter.getSubmittedByUserOrSalesId());
+        response.setSubmittedAt(submitter.getSubmittedAt());
+        response.setUpdatedAt(status.getUpdatedAt());
+
+        return response;
+    }
 }
 
 
 
 
-package com.credit.backend.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+package com.credit.backend.service;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class LoginRequest {
+import com.credit.backend.dao.UserRepository;
+import com.credit.backend.dto.AuthResponse;
+import com.credit.backend.dto.LoginRequest;
+import com.credit.backend.dto.SignUpRequest;
+import com.credit.backend.model.User;
+import com.credit.backend.util.JwtUtil;
+import com.credit.backend.util.PasswordEncoderUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+import java.util.Collections;
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email should be valid")
-    private String email;
+@Service
+public class AuthService implements UserDetailsService {
 
-    @NotBlank(message = "Password is required")
-    private String password;
-}
+    @Autowired
+    private UserRepository userRepository;
 
+    @Autowired
+    private PasswordEncoderUtil passwordEncoderUtil;
 
+    @Autowired
+    private JwtUtil jwtUtil;
 
-package com.credit.backend.dto;
+    public AuthResponse signUp(SignUpRequest request) {
+        // Check if user already exists
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email already exists");
+        }
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.util.UUID;
+        // Create new user
+        User user = new User();
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setEmail(request.getEmail());
+        user.setPassword(passwordEncoderUtil.encode(request.getPassword()));
+        user.setRole(User.Role.USER);
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class OfferGenerationRequest {
+        user = userRepository.save(user);
 
-    @NotNull(message = "Application ID is required")
-    private UUID appId;
+        // Generate token
+        String token = jwtUtil.generateToken(user.getEmail(), user.getUserId(), user.getRole().name());
 
-    @NotBlank(message = "Action is required (APPROVED/REJECTED)")
-    private String action; // APPROVED or REJECTED
+        return new AuthResponse(token, user.getUserId(), user.getEmail(),
+                user.getFirstName(), user.getLastName(), user.getRole().name());
+    }
 
-    private String rejectReason;
+    public AuthResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
 
-    private Integer creditScore; // Dummy credit score for offer generation
-}
+        if (!passwordEncoderUtil.matches(request.getPassword(), user.getPassword())) {
+            throw new RuntimeException("Invalid email or password");
+        }
 
+        String token = jwtUtil.generateToken(user.getEmail(), user.getUserId(), user.getRole().name());
 
+        return new AuthResponse(token, user.getUserId(), user.getEmail(),
+                user.getFirstName(), user.getLastName(), user.getRole().name());
+    }
 
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-
-package com.credit.backend.dto;
-
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class OnboardingResponse {
-
-    private UUID appId;
-    private UUID userId;
-    private String fullName;
-    private String phoneNumber;
-    private String status;
-    private String submittedBy;
-    private LocalDateTime submittedAt;
-}
-
-
-
-
-
-package com.credit.backend.dto;
-
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class SignUpRequest {
-
-    @NotBlank(message = "First name is required")
-    @Size(max = 50, message = "First name must not exceed 50 characters")
-    private String firstName;
-
-    @NotBlank(message = "Last name is required")
-    @Size(max = 50, message = "Last name must not exceed 50 characters")
-    private String lastName;
-
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email should be valid")
-    @Size(max = 100, message = "Email must not exceed 100 characters")
-    private String email;
-
-    @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
-    private String password;
+        return new org.springframework.security.core.userdetails.User(
+                user.getEmail(),
+                user.getPassword(),
+                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().name()))
+        );
+    }
 }
 
 
 
 
+package com.credit.backend.service;
 
-package com.credit.backend.exceptions;
+import com.credit.backend.dao.ApplicationStatusRepository;
+import com.credit.backend.dao.ApplicationDetailsRepository;
+import com.credit.backend.dao.ApplicationSubmitterRepository;
+import com.credit.backend.dto.ApplicationDetailResponse;
+import com.credit.backend.dto.DocumentVerificationRequest;
+import com.credit.backend.model.ApplicationStatus;
+import com.credit.backend.model.ApplicationDetails;
+import com.credit.backend.model.ApplicationSubmitter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.*;
+import java.util.stream.Collectors;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
+@Service
+public class DocumentVerificationService {
+
+    @Autowired
+    private ApplicationStatusRepository statusRepository;
+
+    @Autowired
+    private ApplicationDetailsRepository detailsRepository;
+
+    @Autowired
+    private ApplicationSubmitterRepository submitterRepository;
+
+    public List<ApplicationDetailResponse> getPendingVerifications() {
+        List<ApplicationStatus> pendingStatuses = statusRepository
+                .findByDocumentVerificationStatus(ApplicationStatus.VerificationStatus.IN_PROGRESS);
+
+        return pendingStatuses.stream().map(status -> {
+            ApplicationDetails details = detailsRepository.findByAppId(status.getAppId()).orElse(null);
+            ApplicationSubmitter submitter = submitterRepository.findById(status.getAppId()).orElse(null);
+
+            if (details != null && submitter != null) {
+                return mapToDetailResponse(submitter, details, status);
+            }
+            return null;
+        }).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public ApplicationDetailResponse verifyDocument(DocumentVerificationRequest request) {
+        ApplicationStatus status = statusRepository.findByAppId(request.getAppId())
+                .orElseThrow(() -> new RuntimeException("Application not found"));
+
+        if ("APPROVED".equalsIgnoreCase(request.getAction())) {
+            status.setDocumentVerificationStatus(ApplicationStatus.VerificationStatus.APPROVED);
+            status.setDocumentRejectReason(null);
+        } else if ("REJECTED".equalsIgnoreCase(request.getAction())) {
+            status.setDocumentVerificationStatus(ApplicationStatus.VerificationStatus.REJECTED);
+            status.setDocumentRejectReason(request.getRejectReason());
+        } else {
+            throw new RuntimeException("Invalid action. Use APPROVED or REJECTED");
+        }
+
+        statusRepository.save(status);
+
+        ApplicationDetails details = detailsRepository.findByAppId(request.getAppId())
+                .orElseThrow(() -> new RuntimeException("Application details not found"));
+        ApplicationSubmitter submitter = submitterRepository.findById(request.getAppId())
+                .orElseThrow(() -> new RuntimeException("Application submitter not found"));
+
+        return mapToDetailResponse(submitter, details, status);
+    }
+
+    private ApplicationDetailResponse mapToDetailResponse(ApplicationSubmitter submitter,
+                                                          ApplicationDetails details,
+                                                          ApplicationStatus status) {
+        ApplicationDetailResponse response = new ApplicationDetailResponse();
+        response.setAppId(submitter.getAppId());
+        response.setFullName(details.getFullName());
+        response.setEmail(details.getEmail());
+        response.setPhoneNumber(details.getPhoneNumber());
+        response.setDateOfBirth(details.getDateOfBirth());
+        response.setAddress(details.getAddress());
+        response.setAadhar(details.getAadhar());
+        response.setPan(details.getPan());
+        response.setIncomeProof(details.getIncomeProof());
+        response.setDocumentVerificationStatus(status.getDocumentVerificationStatus().name());
+        response.setOfferStatus(status.getOfferStatus().name());
+        response.setSubmittedByRole(submitter.getSubmittedByRole().name());
+        response.setSubmittedById(submitter.getSubmittedByUserOrSalesId());
+        response.setSubmittedAt(submitter.getSubmittedAt());
+        response.setUpdatedAt(status.getUpdatedAt());
+
+        return response;
+    }
+}
+
+
+
+
+
+
+package com.credit.backend.service;
+
+import com.credit.backend.dao.ApplicationStatusRepository;
+import com.credit.backend.dao.ApplicationDetailsRepository;
+import com.credit.backend.dao.ApplicationSubmitterRepository;
+import com.credit.backend.dto.ApplicationDetailResponse;
+import com.credit.backend.dto.OfferGenerationRequest;
+import com.credit.backend.model.ApplicationStatus;
+import com.credit.backend.model.ApplicationDetails;
+import com.credit.backend.model.ApplicationSubmitter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+public class OfferGenerationService {
+
+    @Autowired
+    private ApplicationStatusRepository statusRepository;
+
+    @Autowired
+    private ApplicationDetailsRepository detailsRepository;
+
+    @Autowired
+    private ApplicationSubmitterRepository submitterRepository;
+
+    public List<ApplicationDetailResponse> getApprovedForOffer() {
+        // Get applications where document verification is APPROVED and offer is IN_PROGRESS
+        List<ApplicationStatus> approvedStatuses = statusRepository
+                .findByDocumentVerificationStatusAndOfferStatus(
+                        ApplicationStatus.VerificationStatus.APPROVED,
+                        ApplicationStatus.OfferStatus.IN_PROGRESS
+                );
+
+        return approvedStatuses.stream().map(status -> {
+            ApplicationDetails details = detailsRepository.findByAppId(status.getAppId()).orElse(null);
+            ApplicationSubmitter submitter = submitterRepository.findById(status.getAppId()).orElse(null);
+
+            if (details != null && submitter != null) {
+                return mapToDetailResponse(submitter, details, status);
+            }
+            return null;
+        }).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+
+    public Map<String, Object> generateCreditScore(UUID appId) {
+        ApplicationDetails details = detailsRepository.findByAppId(appId)
+                .orElseThrow(() -> new RuntimeException("Application not found"));
+
+        // Dummy credit score generation logic
+        Random random = new Random();
+        int creditScore = 300 + random.nextInt(551); // Score between 300-850
+
+        String creditRating;
+        if (creditScore >= 750) {
+            creditRating = "Excellent";
+        } else if (creditScore >= 700) {
+            creditRating = "Good";
+        } else if (creditScore >= 650) {
+            creditRating = "Fair";
+        } else if (creditScore >= 600) {
+            creditRating = "Poor";
+        } else {
+            creditRating = "Very Poor";
+        }
+
+        Map<String, Object> creditInfo = new HashMap<>();
+        creditInfo.put("appId", appId);
+        creditInfo.put("fullName", details.getFullName());
+        creditInfo.put("creditScore", creditScore);
+        creditInfo.put("creditRating", creditRating);
+        creditInfo.put("generatedAt", new Date());
+
+        return creditInfo;
+    }
+
+    @Transactional
+    public ApplicationDetailResponse processOffer(OfferGenerationRequest request) {
+        ApplicationStatus status = statusRepository.findByAppId(request.getAppId())
+                .orElseThrow(() -> new RuntimeException("Application not found"));
+
+        // Check if document verification is approved
+        if (status.getDocumentVerificationStatus() != ApplicationStatus.VerificationStatus.APPROVED) {
+            throw new RuntimeException("Document verification must be approved before generating offer");
+        }
+
+        if ("APPROVED".equalsIgnoreCase(request.getAction())) {
+            status.setOfferStatus(ApplicationStatus.OfferStatus.APPROVED);
+            status.setOfferRejectReason(null);
+        } else if ("REJECTED".equalsIgnoreCase(request.getAction())) {
+            status.setOfferStatus(ApplicationStatus.OfferStatus.REJECTED);
+            status.setOfferRejectReason(request.getRejectReason());
+        } else {
+            throw new RuntimeException("Invalid action. Use APPROVED or REJECTED");
+        }
+
+        statusRepository.save(status);
+
+        ApplicationDetails details = detailsRepository.findByAppId(request.getAppId())
+                .orElseThrow(() -> new RuntimeException("Application details not found"));
+        ApplicationSubmitter submitter = submitterRepository.findById(request.getAppId())
+                .orElseThrow(() -> new RuntimeException("Application submitter not found"));
+
+        return mapToDetailResponse(submitter, details, status);
+    }
+
+    private ApplicationDetailResponse mapToDetailResponse(ApplicationSubmitter submitter,
+                                                          ApplicationDetails details,
+                                                          ApplicationStatus status) {
+        ApplicationDetailResponse response = new ApplicationDetailResponse();
+        response.setAppId(submitter.getAppId());
+        response.setFullName(details.getFullName());
+        response.setEmail(details.getEmail());
+        response.setPhoneNumber(details.getPhoneNumber());
+        response.setDateOfBirth(details.getDateOfBirth());
+        response.setAddress(details.getAddress());
+        response.setAadhar(details.getAadhar());
+        response.setPan(details.getPan());
+        response.setIncomeProof(details.getIncomeProof());
+        response.setDocumentVerificationStatus(status.getDocumentVerificationStatus().name());
+        response.setOfferStatus(status.getOfferStatus().name());
+        response.setSubmittedByRole(submitter.getSubmittedByRole().name());
+        response.setSubmittedById(submitter.getSubmittedByUserOrSalesId());
+        response.setSubmittedAt(submitter.getSubmittedAt());
+        response.setUpdatedAt(status.getUpdatedAt());
+
+        return response;
+    }
+}
+
+
+
+
+
+package com.credit.backend.util;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import java.security.Key;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-
-@RestControllerAdvice
-public class GlobalExceptionHandler {
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {
-        Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
-        });
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
-    }
-
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
-        Map<String, String> error = new HashMap<>();
-        error.put("error", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, String>> handleGenericException(Exception ex) {
-        Map<String, String> error = new HashMap<>();
-        error.put("error", "An unexpected error occurred: " + ex.getMessage());
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
-    }
-}
-
-
-
-
-package com.credit.backend.model;
-
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.function.Function;
 
-@Entity
-@Table(name = "application_details")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApplicationDetails {
+@Component
+public class JwtUtil {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
-    private Long id;
+    @Value("${jwt.secret:mySecretKeyForJWTTokenGenerationAndValidation12345}")
+    private String secret;
 
-    @Column(name = "app_id", nullable = false)
-    private UUID appId;
+    @Value("${jwt.expiration:86400000}") // 24 hours
+    private Long expiration;
 
-    @Column(name = "full_name", nullable = false, length = 100)
-    private String fullName;
+    private Key getSigningKey() {
+        return Keys.hmacShaKeyFor(secret.getBytes());
+    }
 
-    @Column(name = "email", nullable = false, length = 100)
-    private String email;
+    public String extractEmail(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
 
-    @Column(name = "phone_number", nullable = false, length = 20)
-    private String phoneNumber;
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
 
-    @Column(name = "date_of_birth", nullable = false)
-    private LocalDate dateOfBirth;
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
 
-    @Column(name = "address", nullable = false, columnDefinition = "TEXT")
-    private String address;
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
 
-    @Column(name = "aadhar", nullable = false, length = 20)
-    private String aadhar;
+    private Boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
 
-    @Column(name = "pan", nullable = false, length = 20)
-    private String pan;
+    public String generateToken(String email, UUID userId, String role) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userId.toString());
+        claims.put("role", role);
+        return createToken(claims, email);
+    }
 
-    @Column(name = "income_proof", length = 255)
-    private String incomeProof;
+    private String createToken(Map<String, Object> claims, String subject) {
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(subject)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
+    public Boolean validateToken(String token, String email) {
+        final String extractedEmail = extractEmail(token);
+        return (extractedEmail.equals(email) && !isTokenExpired(token));
     }
 }
 
 
 
-package com.credit.backend.model;
+package com.credit.backend.util;
 
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import java.security.Key;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 
-@Entity
-@Table(name = "application_status")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApplicationStatus {
+@Component
+public class JwtUtil {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "status_id")
-    private Long statusId;
+    @Value("${jwt.secret:mySecretKeyForJWTTokenGenerationAndValidation12345}")
+    private String secret;
 
-    @Column(name = "app_id", nullable = false, unique = true)
-    private UUID appId;
+    @Value("${jwt.expiration:86400000}") // 24 hours
+    private Long expiration;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "document_verification_status", nullable = false)
-    private VerificationStatus documentVerificationStatus = VerificationStatus.IN_PROGRESS;
-
-    @Column(name = "document_reject_reason", columnDefinition = "TEXT")
-    private String documentRejectReason;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "offer_status", nullable = false)
-    private OfferStatus offerStatus = OfferStatus.IN_PROGRESS;
-
-    @Column(name = "offer_reject_reason", columnDefinition = "TEXT")
-    private String offerRejectReason;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
-
-    public enum VerificationStatus {
-        IN_PROGRESS, APPROVED, REJECTED
+    private Key getSigningKey() {
+        return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
-    public enum OfferStatus {
-        IN_PROGRESS, APPROVED, REJECTED
+    public String extractEmail(String token) {
+        return extractClaim(token, Claims::getSubject);
     }
 
-    @PrePersist
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
-}
-
-
-
-package com.credit.backend.model;
-
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-@Entity
-@Table(name = "application_submitter")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApplicationSubmitter {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "app_id")
-    private UUID appId;
-
-    @Column(name = "submitted_by_user_or_sales_id", nullable = false)
-    private UUID submittedByUserOrSalesId;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "submitted_by_role", nullable = false)
-    private SubmittedByRole submittedByRole;
-
-    @Column(name = "submitted_at", nullable = false, updatable = false)
-    private LocalDateTime submittedAt = LocalDateTime.now();
-
-    public enum SubmittedByRole {
-        USER, SALES
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
     }
 
-    @PrePersist
-    protected void onCreate() {
-        submittedAt = LocalDateTime.now();
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    private Boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+
+    public String generateToken(String email, UUID userId, String role) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userId.toString());
+        claims.put("role", role);
+        return createToken(claims, email);
+    }
+
+    private String createToken(Map<String, Object> claims, String subject) {
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(subject)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public Boolean validateToken(String token, String email) {
+        final String extractedEmail = extractEmail(token);
+        return (extractedEmail.equals(email) && !isTokenExpired(token));
     }
 }
 
@@ -515,57 +717,115 @@ public class ApplicationSubmitter {
 
 
 
-package com.credit.backend.model;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-@Entity
-@Table(name = "users")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class User {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "user_id")
-    private UUID userId;
-
-    @Column(name = "first_name", nullable = false, length = 50)
-    private String firstName;
-
-    @Column(name = "last_name", nullable = false, length = 50)
-    private String lastName;
-
-    @Column(name = "email", nullable = false, unique = true, length = 100)
-    private String email;
-
-    @Column(name = "password", nullable = false, length = 255)
-    private String password;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false)
-    private Role role = Role.USER;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    public enum Role {
-        USER, SALES
-    }
-
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-    }
-}
+@SpringBootApplication(scanBasePackages = {"com.credit.backend"})
+@EntityScan(basePackages = "com.credit.backend.model")
+@EnableJpaRepositories(basePackages = "com.credit.backend.dao")
+@EnableMethodSecurity // ADDED: Enable method-level security
 
 
 
 
+
+# Server Configuration
+server.port=8080
+
+# Database Configuration
+spring.datasource.url=jdbc:postgresql://localhost:5432/credit_card_db
+spring.datasource.username=postgres
+spring.datasource.password=1234
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# JPA/Hibernate Configuration
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+spring.jpa.properties.hibernate.format_sql=true
+
+# JWT Configuration
+jwt.secret=mySecretKeyForJWTTokenGenerationAndValidation12345
+jwt.expiration=86400000
+
+# Logging
+logging.level.org.springframework.security=DEBUG
+logging.level.com.credit.backend=DEBUG
+
+
+
+
+
+
+
+
+<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Starter Validation -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.11.5</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.11.5</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.11.5</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Spring Security Test -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
