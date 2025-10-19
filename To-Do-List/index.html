@@ -25,3 +25,467 @@
 </body>
 
 </html>
+
+
+
+
+
+
+
+
+
+
+
+package com.credit.backend.config;
+
+import com.credit.backend.security.JwtAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.Arrays;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Autowired
+    private UserDetailsService userDetailsService;
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .authorizeHttpRequests(auth -> auth
+                        // Public endpoints
+                        .requestMatchers("/api/auth/**").permitAll()
+
+                        // SALES-only endpoints
+                        .requestMatchers("/api/onboarding/**").hasAuthority("SALES")
+                        .requestMatchers("/api/document-verification/**").hasAuthority("SALES")
+                        .requestMatchers("/api/offer/**").hasAuthority("SALES")
+
+                        // USER and SALES can access application endpoints
+                        .requestMatchers("/api/application/**").authenticated()
+
+                        // All other requests require authentication
+                        .anyRequest().authenticated()
+                )
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:5173"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+}
+
+
+package com.credit.backend.controller;
+
+import com.credit.backend.dto.ApplicationDetailResponse;
+import com.credit.backend.dto.ApplicationRequest;
+import com.credit.backend.service.ApplicationService;
+import com.credit.backend.util.JwtUtil;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.Map;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/application")
+@CrossOrigin(origins = "*")
+public class ApplicationController {
+
+    @Autowired
+    private ApplicationService applicationService;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @PostMapping("/submit")
+    public ResponseEntity<?> submitApplication(
+            @Valid @RequestBody ApplicationRequest request,
+            @RequestHeader("Authorization") String token) {
+        try {
+            String jwt = token.substring(7);
+            String email = jwtUtil.extractEmail(jwt);
+            String userId = jwtUtil.extractClaim(jwt, claims -> claims.get("userId", String.class));
+            String role = jwtUtil.extractClaim(jwt, claims -> claims.get("role", String.class));
+
+            ApplicationDetailResponse response = applicationService.submitApplication(
+                    request, UUID.fromString(userId), role);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/update/{appId}")
+    public ResponseEntity<?> updateApplication(
+            @PathVariable UUID appId,
+            @Valid @RequestBody ApplicationRequest request) {
+        try {
+            ApplicationDetailResponse response = applicationService.updateApplication(appId, request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{appId}")
+    public ResponseEntity<?> getApplicationById(@PathVariable UUID appId) {
+        try {
+            ApplicationDetailResponse response = applicationService.getApplicationById(appId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/my-applications")
+    public ResponseEntity<?> getMyApplications(@RequestHeader("Authorization") String token) {
+        try {
+            String jwt = token.substring(7);
+            String userId = jwtUtil.extractClaim(jwt, claims -> claims.get("userId", String.class));
+
+            return ResponseEntity.ok(applicationService.getApplicationsByUserId(UUID.fromString(userId)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+}
+
+
+
+
+
+package com.credit.backend.controller;
+
+import com.credit.backend.dto.AuthResponse;
+import com.credit.backend.dto.LoginRequest;
+import com.credit.backend.dto.SignUpRequest;
+import com.credit.backend.service.AuthService;
+import jakarta.validation.Valid;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/auth")
+@CrossOrigin(origins = "*")
+public class AuthController {
+
+    @Autowired
+    private AuthService authService;
+
+    @PostMapping("/signup")
+    public ResponseEntity<?> signUp(@Valid @RequestBody SignUpRequest request) {
+        try {
+            AuthResponse response = authService.signUp(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        try {
+            AuthResponse response = authService.login(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+}
+
+
+package com.credit.backend.controller;
+
+import com.credit.backend.dto.ApplicationDetailResponse;
+import com.credit.backend.dto.DocumentVerificationRequest;
+import com.credit.backend.service.DocumentVerificationService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/document-verification")
+@CrossOrigin(origins = "*")
+public class DocumentVerificationController {
+
+    @Autowired
+    private DocumentVerificationService documentVerificationService;
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @GetMapping("/pending")
+    public ResponseEntity<?> getPendingVerifications() {
+        try {
+            List<ApplicationDetailResponse> applications = documentVerificationService.getPendingVerifications();
+            return ResponseEntity.ok(applications);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @PostMapping("/verify")
+    public ResponseEntity<?> verifyDocument(@Valid @RequestBody DocumentVerificationRequest request) {
+        try {
+            ApplicationDetailResponse response = documentVerificationService.verifyDocument(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+}
+
+
+
+
+package com.credit.backend.controller;
+
+import com.credit.backend.dto.ApplicationDetailResponse;
+import com.credit.backend.dto.OfferGenerationRequest;
+import com.credit.backend.service.OfferGenerationService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/offer")
+@CrossOrigin(origins = "*")
+public class OfferController {
+
+    @Autowired
+    private OfferGenerationService offerGenerationService;
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @GetMapping("/approved")
+    public ResponseEntity<?> getApprovedForOffer() {
+        try {
+            List<ApplicationDetailResponse> applications = offerGenerationService.getApprovedForOffer();
+            return ResponseEntity.ok(applications);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @GetMapping("/credit-score/{appId}")
+    public ResponseEntity<?> generateCreditScore(@PathVariable UUID appId) {
+        try {
+            Map<String, Object> creditInfo = offerGenerationService.generateCreditScore(appId);
+            return ResponseEntity.ok(creditInfo);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @PostMapping("/process")
+    public ResponseEntity<?> processOffer(@Valid @RequestBody OfferGenerationRequest request) {
+        try {
+            ApplicationDetailResponse response = offerGenerationService.processOffer(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+}
+
+
+package com.credit.backend.controller;
+
+import com.credit.backend.dto.OnboardingResponse;
+import com.credit.backend.service.ApplicationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/onboarding")
+@CrossOrigin(origins = "*")
+public class OnboardingController {
+
+    @Autowired
+    private ApplicationService applicationService;
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @GetMapping("/all")
+    public ResponseEntity<?> getAllApplications() {
+        try {
+            List<OnboardingResponse> applications = applicationService.getAllApplications();
+            return ResponseEntity.ok(applications);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+}
+
+
+
+package com.credit.backend.dao;
+
+import com.credit.backend.model.ApplicationDetails;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface ApplicationDetailsRepository extends JpaRepository<ApplicationDetails, Long> {
+
+    Optional<ApplicationDetails> findByAppId(UUID appId);
+
+    void deleteByAppId(UUID appId);
+}
+
+
+
+
+
+package com.credit.backend.dao;
+
+import com.credit.backend.model.ApplicationStatus;
+import com.credit.backend.model.ApplicationStatus.VerificationStatus;
+import com.credit.backend.model.ApplicationStatus.OfferStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface ApplicationStatusRepository extends JpaRepository<ApplicationStatus, Long> {
+
+    Optional<ApplicationStatus> findByAppId(UUID appId);
+
+    List<ApplicationStatus> findByDocumentVerificationStatus(VerificationStatus status);
+
+    List<ApplicationStatus> findByDocumentVerificationStatusAndOfferStatus(
+            VerificationStatus documentStatus,
+            OfferStatus offerStatus
+    );
+}
+
+
+
+package com.credit.backend.dao;
+
+import com.credit.backend.model.ApplicationStatus;
+import com.credit.backend.model.ApplicationStatus.VerificationStatus;
+import com.credit.backend.model.ApplicationStatus.OfferStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface ApplicationStatusRepository extends JpaRepository<ApplicationStatus, Long> {
+
+    Optional<ApplicationStatus> findByAppId(UUID appId);
+
+    List<ApplicationStatus> findByDocumentVerificationStatus(VerificationStatus status);
+
+    List<ApplicationStatus> findByDocumentVerificationStatusAndOfferStatus(
+            VerificationStatus documentStatus,
+            OfferStatus offerStatus
+    );
+}
+
+
+
+
+package com.credit.backend.dao;
+
+import com.credit.backend.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface UserRepository extends JpaRepository<User, UUID> {
+
+    Optional<User> findByEmail(String email);
+
+    boolean existsByEmail(String email);
+}
+
+
+
+
