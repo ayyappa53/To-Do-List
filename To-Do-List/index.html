@@ -30,812 +30,846 @@
 
 
 
+package com.credit.backend.config;
 
+import com.credit.backend.security.JwtAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.Arrays;
 
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
 
+    @Autowired
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    @Autowired
+    private UserDetailsService userDetailsService;
 
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .authorizeHttpRequests(auth -> auth
+                        // Public endpoints
+                        .requestMatchers("/api/auth/**").permitAll()
 
+                        // SALES-only endpoints
+                        .requestMatchers("/api/onboarding/**").hasAuthority("SALES")
+                        .requestMatchers("/api/document-verification/**").hasAuthority("SALES")
+                        .requestMatchers("/api/offer/**").hasAuthority("SALES")
 
+                        // USER and SALES can access application endpoints
+                        .requestMatchers("/api/application/**").authenticated()
 
+                        // All other requests require authentication
+                        .anyRequest().authenticated()
+                )
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
+        return http.build();
+    }
 
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
 
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList(
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://localhost:5500",      // Add this
+                "http://127.0.0.1:5500"       // Add this too
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(true);
 
-
-# Complete API Documentation
-
-**Base URL:** `http://localhost:8080`
-
----
-
-## 1. AUTHENTICATION APIs (Public - No Token Required)
-
-### 1.1 User Signup
-**Endpoint:** `POST /api/auth/signup`
-
-**Request:**
-```json
-{
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john@example.com",
-  "password": "password123"
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 }
-```
 
-**Success Response (200 OK):**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiJ9...",
-  "type": "Bearer",
-  "userId": "12345678-90ab-cdef-1234-567890abcdef",
-  "email": "john@example.com",
-  "firstName": "John",
-  "lastName": "Doe",
-  "role": "USER"
+
+
+package com.credit.backend.controller;
+
+import com.credit.backend.dto.ApplicationDetailResponse;
+import com.credit.backend.service.ApplicationService;
+import com.credit.backend.util.JwtUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Map;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/application")
+@CrossOrigin(origins = "*")
+public class ApplicationController {
+
+    @Autowired
+    private ApplicationService applicationService;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @PostMapping("/submit")
+    public ResponseEntity<?> submitApplication(
+            @RequestParam("fullName") String fullName,
+            @RequestParam("email") String email,
+            @RequestParam("phoneNumber") String phoneNumber,
+            @RequestParam("dateOfBirth") String dateOfBirth,
+            @RequestParam("address") String address,
+            @RequestParam("cardType") String cardType,
+            @RequestParam("aadharPdf") MultipartFile aadharPdf,
+            @RequestParam("panPdf") MultipartFile panPdf,
+            @RequestParam(value = "incomeProofPdf", required = false) MultipartFile incomeProofPdf,
+            @RequestHeader("Authorization") String token) {
+        try {
+            String jwt = token.substring(7);
+            String userId = jwtUtil.extractClaim(jwt, claims -> claims.get("userId", String.class));
+            String role = jwtUtil.extractClaim(jwt, claims -> claims.get("role", String.class));
+
+            ApplicationDetailResponse response = applicationService.submitApplication(
+                    fullName, email, phoneNumber, dateOfBirth, address, cardType,
+                    aadharPdf, panPdf, incomeProofPdf,
+                    UUID.fromString(userId), role);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/update/{appId}")
+    public ResponseEntity<?> updateApplication(
+            @PathVariable UUID appId,
+            @RequestParam("fullName") String fullName,
+            @RequestParam("email") String email,
+            @RequestParam("phoneNumber") String phoneNumber,
+            @RequestParam("dateOfBirth") String dateOfBirth,
+            @RequestParam("address") String address,
+            @RequestParam("cardType") String cardType,
+            @RequestParam(value = "aadharPdf", required = false) MultipartFile aadharPdf,
+            @RequestParam(value = "panPdf", required = false) MultipartFile panPdf,
+            @RequestParam(value = "incomeProofPdf", required = false) MultipartFile incomeProofPdf) {
+        try {
+            ApplicationDetailResponse response = applicationService.updateApplication(
+                    appId, fullName, email, phoneNumber, dateOfBirth, address, cardType,
+                    aadharPdf, panPdf, incomeProofPdf);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{appId}")
+    public ResponseEntity<?> getApplicationById(@PathVariable UUID appId) {
+        try {
+            ApplicationDetailResponse response = applicationService.getApplicationById(appId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/my-applications")
+    public ResponseEntity<?> getMyApplications(@RequestHeader("Authorization") String token) {
+        try {
+            String jwt = token.substring(7);
+            String userId = jwtUtil.extractClaim(jwt, claims -> claims.get("userId", String.class));
+
+            return ResponseEntity.ok(applicationService.getApplicationsByUserId(UUID.fromString(userId)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // NEW: Download PDF endpoints
+    @GetMapping("/{appId}/download/aadhar")
+    public ResponseEntity<Resource> downloadAadhar(@PathVariable UUID appId) {
+        try {
+            byte[] pdfData = applicationService.getAadharPdf(appId);
+            String filename = applicationService.getAadharFilename(appId);
+
+            ByteArrayResource resource = new ByteArrayResource(pdfData);
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .body(resource);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(null);
+        }
+    }
+
+    @GetMapping("/{appId}/download/pan")
+    public ResponseEntity<Resource> downloadPan(@PathVariable UUID appId) {
+        try {
+            byte[] pdfData = applicationService.getPanPdf(appId);
+            String filename = applicationService.getPanFilename(appId);
+
+            ByteArrayResource resource = new ByteArrayResource(pdfData);
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .body(resource);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(null);
+        }
+    }
+
+    @GetMapping("/{appId}/download/income-proof")
+    public ResponseEntity<Resource> downloadIncomeProof(@PathVariable UUID appId) {
+        try {
+            byte[] pdfData = applicationService.getIncomeProofPdf(appId);
+            String filename = applicationService.getIncomeProofFilename(appId);
+
+            ByteArrayResource resource = new ByteArrayResource(pdfData);
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .body(resource);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(null);
+        }
+    }
 }
-```
 
-**Error Response (400 Bad Request):**
-```json
-{
-  "error": "Email already exists"
+
+package com.credit.backend.controller;
+
+import com.credit.backend.dto.AuthResponse;
+import com.credit.backend.dto.LoginRequest;
+import com.credit.backend.dto.SignUpRequest;
+import com.credit.backend.service.AuthService;
+import jakarta.validation.Valid;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/auth")
+@CrossOrigin(origins = "*")
+public class AuthController {
+
+    @Autowired
+    private AuthService authService;
+
+    @PostMapping("/signup")
+    public ResponseEntity<?> signUp(@Valid @RequestBody SignUpRequest request) {
+        try {
+            AuthResponse response = authService.signUp(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        try {
+            AuthResponse response = authService.login(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
 }
-```
 
----
 
-### 1.2 User Login
-**Endpoint:** `POST /api/auth/login`
 
-**Request:**
-```json
-{
-  "email": "john@example.com",
-  "password": "password123"
+
+
+package com.credit.backend.controller;
+
+import com.credit.backend.dto.ApplicationDetailResponse;
+import com.credit.backend.dto.DocumentVerificationRequest;
+import com.credit.backend.service.DocumentVerificationService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/document-verification")
+@CrossOrigin(origins = "*")
+public class DocumentVerificationController {
+
+    @Autowired
+    private DocumentVerificationService documentVerificationService;
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @GetMapping("/pending")
+    public ResponseEntity<?> getPendingVerifications() {
+        try {
+            List<ApplicationDetailResponse> applications = documentVerificationService.getPendingVerifications();
+            return ResponseEntity.ok(applications);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @PostMapping("/verify")
+    public ResponseEntity<?> verifyDocument(@Valid @RequestBody DocumentVerificationRequest request) {
+        try {
+            ApplicationDetailResponse response = documentVerificationService.verifyDocument(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
 }
-```
 
-**Success Response (200 OK):**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiJ9...",
-  "type": "Bearer",
-  "userId": "12345678-90ab-cdef-1234-567890abcdef",
-  "email": "john@example.com",
-  "firstName": "John",
-  "lastName": "Doe",
-  "role": "USER"
+
+
+package com.credit.backend.controller;
+
+import com.credit.backend.dto.ApplicationDetailResponse;
+import com.credit.backend.dto.OfferGenerationRequest;
+import com.credit.backend.service.OfferGenerationService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/offer")
+@CrossOrigin(origins = "*")
+public class OfferController {
+
+    @Autowired
+    private OfferGenerationService offerGenerationService;
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @GetMapping("/approved")
+    public ResponseEntity<?> getApprovedForOffer() {
+        try {
+            List<ApplicationDetailResponse> applications = offerGenerationService.getApprovedForOffer();
+            return ResponseEntity.ok(applications);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @GetMapping("/credit-score/{appId}")
+    public ResponseEntity<?> generateCreditScore(@PathVariable UUID appId) {
+        try {
+            Map<String, Object> creditInfo = offerGenerationService.generateCreditScore(appId);
+            return ResponseEntity.ok(creditInfo);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @PostMapping("/process")
+    public ResponseEntity<?> processOffer(@Valid @RequestBody OfferGenerationRequest request) {
+        try {
+            ApplicationDetailResponse response = offerGenerationService.processOffer(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
 }
-```
 
-**Error Response (401 Unauthorized):**
-```json
-{
-  "error": "Invalid email or password"
+
+
+
+package com.credit.backend.controller;
+
+import com.credit.backend.dto.OnboardingResponse;
+import com.credit.backend.service.ApplicationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/onboarding")
+@CrossOrigin(origins = "*")
+public class OnboardingController {
+
+    @Autowired
+    private ApplicationService applicationService;
+
+    @PreAuthorize("hasAuthority('SALES')") // ADDED: Extra security layer
+    @GetMapping("/all")
+    public ResponseEntity<?> getAllApplications() {
+        try {
+            List<OnboardingResponse> applications = applicationService.getAllApplications();
+            return ResponseEntity.ok(applications);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
 }
-```
 
----
 
-### 1.3 Sales Login
-**Endpoint:** `POST /api/auth/login`
 
-**Request:**
-```json
-{
-  "email": "sales@example.com",
-  "password": "sales123"
+
+
+
+
+
+
+
+
+
+
+package com.credit.backend.dao;
+
+import com.credit.backend.model.ApplicationDetails;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface ApplicationDetailsRepository extends JpaRepository<ApplicationDetails, Long> {
+
+    Optional<ApplicationDetails> findByAppId(UUID appId);
+
+    void deleteByAppId(UUID appId);
 }
-```
 
-**Success Response (200 OK):**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiJ9...",
-  "type": "Bearer",
-  "userId": "98765432-10ab-cdef-1234-567890abcdef",
-  "email": "sales@example.com",
-  "firstName": "Sales",
-  "lastName": "Admin",
-  "role": "SALES"
+
+
+
+package com.credit.backend.dao;
+
+import com.credit.backend.model.ApplicationStatus;
+import com.credit.backend.model.ApplicationStatus.VerificationStatus;
+import com.credit.backend.model.ApplicationStatus.OfferStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface ApplicationStatusRepository extends JpaRepository<ApplicationStatus, Long> {
+
+    Optional<ApplicationStatus> findByAppId(UUID appId);
+
+    List<ApplicationStatus> findByDocumentVerificationStatus(VerificationStatus status);
+
+    List<ApplicationStatus> findByDocumentVerificationStatusAndOfferStatus(
+            VerificationStatus documentStatus,
+            OfferStatus offerStatus
+    );
 }
-```
 
----
 
-## 2. APPLICATION APIs (USER & SALES - Token Required)
 
-### 2.1 Submit Application
-**Endpoint:** `POST /api/application/submit`  
-**Access:** USER, SALES
 
-**Headers:**
-```
-Authorization: Bearer YOUR_TOKEN_HERE
-Content-Type: application/json
-```
 
-**Request:**
-```json
-{
-  "fullName": "John Doe",
-  "email": "john@example.com",
-  "phoneNumber": "9876543210",
-  "dateOfBirth": "1990-01-15",
-  "address": "123 Main Street, Apartment 4B, New York, NY 10001",
-  "aadhar": "123456789012",
-  "pan": "ABCDE1234F",
-  "incomeProof": "salary_slip_jan2024.pdf"
+
+package com.credit.backend.dao;
+
+import com.credit.backend.model.ApplicationSubmitter;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.UUID;
+
+
+@Repository
+public interface ApplicationSubmitterRepository extends JpaRepository<ApplicationSubmitter, UUID> {
+    @Query("SELECT a FROM ApplicationSubmitter a WHERE a.submittedByUserOrSalesId = :userId")
+    List<ApplicationSubmitter> findBySubmittedByUserOrSalesId(UUID userId);
 }
-```
 
-**Success Response (200 OK):**
-```json
-{
-  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
-  "fullName": "John Doe",
-  "email": "john@example.com",
-  "phoneNumber": "9876543210",
-  "dateOfBirth": "1990-01-15",
-  "address": "123 Main Street, Apartment 4B, New York, NY 10001",
-  "aadhar": "123456789012",
-  "pan": "ABCDE1234F",
-  "incomeProof": "salary_slip_jan2024.pdf",
-  "documentVerificationStatus": "IN_PROGRESS",
-  "offerStatus": "IN_PROGRESS",
-  "submittedByRole": "USER",
-  "submittedById": "12345678-90ab-cdef-1234-567890abcdef",
-  "submittedAt": "2024-10-19T10:30:00",
-  "updatedAt": "2024-10-19T10:30:00"
+
+
+
+package com.credit.backend.dao;
+
+import com.credit.backend.model.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface UserRepository extends JpaRepository<User, UUID> {
+
+    Optional<User> findByEmail(String email);
+
+    boolean existsByEmail(String email);
 }
-```
 
----
 
-### 2.2 Get My Applications
-**Endpoint:** `GET /api/application/my-applications`  
-**Access:** USER, SALES
 
-**Headers:**
-```
-Authorization: Bearer YOUR_TOKEN_HERE
-```
 
-**Success Response (200 OK):**
-```json
-[
-  {
-    "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
-    "fullName": "John Doe",
-    "email": "john@example.com",
-    "phoneNumber": "9876543210",
-    "dateOfBirth": "1990-01-15",
-    "address": "123 Main Street, Apartment 4B, New York, NY 10001",
-    "aadhar": "123456789012",
-    "pan": "ABCDE1234F",
-    "incomeProof": "salary_slip_jan2024.pdf",
-    "documentVerificationStatus": "IN_PROGRESS",
-    "offerStatus": "IN_PROGRESS",
-    "submittedByRole": "USER",
-    "submittedById": "12345678-90ab-cdef-1234-567890abcdef",
-    "submittedAt": "2024-10-19T10:30:00",
-    "updatedAt": "2024-10-19T10:30:00"
-  }
-]
-```
+package com.credit.backend.dto;
 
----
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
-### 2.3 Get Application by ID
-**Endpoint:** `GET /api/application/{appId}`  
-**Access:** USER, SALES
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ApplicationDetailResponse {
 
-**Headers:**
-```
-Authorization: Bearer YOUR_TOKEN_HERE
-```
+    private UUID appId;
+    private String fullName;
+    private String email;
+    private String phoneNumber;
+    private LocalDate dateOfBirth;
+    private String address;
 
-**Success Response (200 OK):**
-```json
-{
-  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
-  "fullName": "John Doe",
-  "email": "john@example.com",
-  "phoneNumber": "9876543210",
-  "dateOfBirth": "1990-01-15",
-  "address": "123 Main Street, Apartment 4B, New York, NY 10001",
-  "aadhar": "123456789012",
-  "pan": "ABCDE1234F",
-  "incomeProof": "salary_slip_jan2024.pdf",
-  "documentVerificationStatus": "IN_PROGRESS",
-  "offerStatus": "IN_PROGRESS",
-  "submittedByRole": "USER",
-  "submittedById": "12345678-90ab-cdef-1234-567890abcdef",
-  "submittedAt": "2024-10-19T10:30:00",
-  "updatedAt": "2024-10-19T10:30:00"
+    // CHANGED: Return filenames instead of actual PDF bytes
+    private String aadharFilename;
+    private String panFilename;
+    private String incomeProofFilename;
+
+    // NEW: Card Type
+    private String cardType;
+
+    private String documentVerificationStatus;
+    private String offerStatus;
+    private String submittedByRole;
+    private UUID submittedById;
+    private LocalDateTime submittedAt;
+    private LocalDateTime updatedAt;
 }
-```
 
-**Error Response (404 Not Found):**
-```json
-{
-  "error": "Application not found"
+
+
+
+
+
+package com.credit.backend.dto;
+
+import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDate;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ApplicationRequest {
+
+    @NotBlank(message = "Full name is required")
+    @Size(max = 100, message = "Full name must not exceed 100 characters")
+    private String fullName;
+
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email should be valid")
+    @Size(max = 100, message = "Email must not exceed 100 characters")
+    private String email;
+
+    @NotBlank(message = "Phone number is required")
+    @Pattern(regexp = "^[0-9]{10}$", message = "Phone number must be 10 digits")
+    private String phoneNumber;
+
+    @NotNull(message = "Date of birth is required")
+    @Past(message = "Date of birth must be in the past")
+    private LocalDate dateOfBirth;
+
+    @NotBlank(message = "Address is required")
+    private String address;
+
+    // REMOVED: aadhar, pan, incomeProof text fields
+    // Files will be uploaded separately via multipart
+
+    // NEW: Card Type
+    @NotBlank(message = "Card type is required")
+    @Pattern(regexp = "^(GOLD|SILVER|PLATINUM)$", message = "Card type must be GOLD, SILVER, or PLATINUM")
+    private String cardType;
 }
-```
 
----
 
-### 2.4 Update Application
-**Endpoint:** `PUT /api/application/update/{appId}`  
-**Access:** USER, SALES
 
-**Headers:**
-```
-Authorization: Bearer YOUR_TOKEN_HERE
-Content-Type: application/json
-```
+package com.credit.backend.dto;
 
-**Request:**
-```json
-{
-  "fullName": "John Michael Doe",
-  "email": "john.doe@example.com",
-  "phoneNumber": "9876543210",
-  "dateOfBirth": "1990-01-15",
-  "address": "123 Main Street, Apartment 4B, New York, NY 10001",
-  "aadhar": "123456789012",
-  "pan": "ABCDE1234F",
-  "incomeProof": "updated_salary_slip_feb2024.pdf"
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class AuthResponse {
+
+    private String token;
+    private String type = "Bearer";
+    private UUID userId;
+    private String email;
+    private String firstName;
+    private String lastName;
+    private String role;
+
+    public AuthResponse(String token, UUID userId, String email, String firstName, String lastName, String role) {
+        this.token = token;
+        this.userId = userId;
+        this.email = email;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.role = role;
+    }
 }
-```
 
-**Success Response (200 OK):**
-```json
-{
-  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
-  "fullName": "John Michael Doe",
-  "email": "john.doe@example.com",
-  "phoneNumber": "9876543210",
-  "dateOfBirth": "1990-01-15",
-  "address": "123 Main Street, Apartment 4B, New York, NY 10001",
-  "aadhar": "123456789012",
-  "pan": "ABCDE1234F",
-  "incomeProof": "updated_salary_slip_feb2024.pdf",
-  "documentVerificationStatus": "IN_PROGRESS",
-  "offerStatus": "IN_PROGRESS",
-  "submittedByRole": "USER",
-  "submittedById": "12345678-90ab-cdef-1234-567890abcdef",
-  "submittedAt": "2024-10-19T10:30:00",
-  "updatedAt": "2024-10-19T11:15:00"
+
+
+package com.credit.backend.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class DocumentVerificationRequest {
+
+    @NotNull(message = "Application ID is required")
+    private UUID appId;
+
+    @NotBlank(message = "Action is required (APPROVED/REJECTED)")
+    private String action; // APPROVED or REJECTED
+
+    private String rejectReason;
 }
-```
 
----
 
-## 3. ONBOARDING APIs (SALES ONLY - Token Required)
 
-### 3.1 Get All Applications
-**Endpoint:** `GET /api/onboarding/all`  
-**Access:** SALES ONLY
 
-**Headers:**
-```
-Authorization: Bearer SALES_TOKEN_HERE
-```
+package com.credit.backend.dto;
 
-**Success Response (200 OK):**
-```json
-[
-  {
-    "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
-    "userId": "12345678-90ab-cdef-1234-567890abcdef",
-    "fullName": "John Doe",
-    "phoneNumber": "9876543210",
-    "status": "IN_PROGRESS",
-    "submittedBy": "USER",
-    "submittedAt": "2024-10-19T10:30:00"
-  },
-  {
-    "appId": "efgh5678-9012-34ab-cdef-567890123456",
-    "userId": "87654321-abcd-ef01-2345-67890abcdef0",
-    "fullName": "Jane Smith",
-    "phoneNumber": "9123456789",
-    "status": "APPROVED",
-    "submittedBy": "SALES",
-    "submittedAt": "2024-10-18T09:15:00"
-  }
-]
-```
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-**Error Response (403 Forbidden) - If USER token is used:**
-```json
-{
-  "error": "Access Denied"
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class LoginRequest {
+
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email should be valid")
+    private String email;
+
+    @NotBlank(message = "Password is required")
+    private String password;
 }
-```
 
----
 
-## 4. DOCUMENT VERIFICATION APIs (SALES ONLY - Token Required)
 
-### 4.1 Get Pending Verifications
-**Endpoint:** `GET /api/document-verification/pending`  
-**Access:** SALES ONLY
+package com.credit.backend.dto;
 
-**Headers:**
-```
-Authorization: Bearer SALES_TOKEN_HERE
-```
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.UUID;
 
-**Success Response (200 OK):**
-```json
-[
-  {
-    "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
-    "fullName": "John Doe",
-    "email": "john@example.com",
-    "phoneNumber": "9876543210",
-    "dateOfBirth": "1990-01-15",
-    "address": "123 Main Street, Apartment 4B, New York, NY 10001",
-    "aadhar": "123456789012",
-    "pan": "ABCDE1234F",
-    "incomeProof": "salary_slip_jan2024.pdf",
-    "documentVerificationStatus": "IN_PROGRESS",
-    "offerStatus": "IN_PROGRESS",
-    "submittedByRole": "USER",
-    "submittedById": "12345678-90ab-cdef-1234-567890abcdef",
-    "submittedAt": "2024-10-19T10:30:00",
-    "updatedAt": "2024-10-19T10:30:00"
-  }
-]
-```
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class OfferGenerationRequest {
 
-**Error Response (403 Forbidden) - If USER token is used:**
-```json
-{
-  "error": "Access Denied"
+    @NotNull(message = "Application ID is required")
+    private UUID appId;
+
+    @NotBlank(message = "Action is required (APPROVED/REJECTED)")
+    private String action; // APPROVED or REJECTED
+
+    private String rejectReason;
+
+    private Integer creditScore; // Dummy credit score for offer generation
 }
-```
 
----
 
-### 4.2 Verify Document - APPROVE
-**Endpoint:** `POST /api/document-verification/verify`  
-**Access:** SALES ONLY
 
-**Headers:**
-```
-Authorization: Bearer SALES_TOKEN_HERE
-Content-Type: application/json
-```
 
-**Request:**
-```json
-{
-  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
-  "action": "APPROVED"
+package com.credit.backend.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class OnboardingResponse {
+
+    private UUID appId;
+    private UUID userId;
+    private String fullName;
+    private String phoneNumber;
+    private String status;
+    private String submittedBy;
+    private LocalDateTime submittedAt;
 }
-```
 
-**Success Response (200 OK):**
-```json
-{
-  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
-  "fullName": "John Doe",
-  "email": "john@example.com",
-  "phoneNumber": "9876543210",
-  "dateOfBirth": "1990-01-15",
-  "address": "123 Main Street, Apartment 4B, New York, NY 10001",
-  "aadhar": "123456789012",
-  "pan": "ABCDE1234F",
-  "incomeProof": "salary_slip_jan2024.pdf",
-  "documentVerificationStatus": "APPROVED",
-  "offerStatus": "IN_PROGRESS",
-  "submittedByRole": "USER",
-  "submittedById": "12345678-90ab-cdef-1234-567890abcdef",
-  "submittedAt": "2024-10-19T10:30:00",
-  "updatedAt": "2024-10-19T12:00:00"
+
+
+
+
+
+package com.credit.backend.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class SignUpRequest {
+
+    @NotBlank(message = "First name is required")
+    @Size(max = 50, message = "First name must not exceed 50 characters")
+    private String firstName;
+
+    @NotBlank(message = "Last name is required")
+    @Size(max = 50, message = "Last name must not exceed 50 characters")
+    private String lastName;
+
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email should be valid")
+    @Size(max = 100, message = "Email must not exceed 100 characters")
+    private String email;
+
+    @NotBlank(message = "Password is required")
+    @Size(min = 6, message = "Password must be at least 6 characters")
+    private String password;
 }
-```
 
----
 
-### 4.3 Verify Document - REJECT
-**Endpoint:** `POST /api/document-verification/verify`  
-**Access:** SALES ONLY
 
-**Headers:**
-```
-Authorization: Bearer SALES_TOKEN_HERE
-Content-Type: application/json
-```
 
-**Request:**
-```json
-{
-  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
-  "action": "REJECTED",
-  "rejectReason": "Aadhar document is not clear. Please upload a better quality scan."
+
+
+package com.credit.backend.exceptions;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import java.util.HashMap;
+import java.util.Map;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach((error) -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            errors.put(fieldName, errorMessage);
+        });
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleGenericException(Exception ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", "An unexpected error occurred: " + ex.getMessage());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+    }
 }
-```
 
-**Success Response (200 OK):**
-```json
-{
-  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
-  "fullName": "John Doe",
-  "email": "john@example.com",
-  "phoneNumber": "9876543210",
-  "dateOfBirth": "1990-01-15",
-  "address": "123 Main Street, Apartment 4B, New York, NY 10001",
-  "aadhar": "123456789012",
-  "pan": "ABCDE1234F",
-  "incomeProof": "salary_slip_jan2024.pdf",
-  "documentVerificationStatus": "REJECTED",
-  "offerStatus": "IN_PROGRESS",
-  "submittedByRole": "USER",
-  "submittedById": "12345678-90ab-cdef-1234-567890abcdef",
-  "submittedAt": "2024-10-19T10:30:00",
-  "updatedAt": "2024-10-19T12:00:00"
-}
-```
 
----
 
-## 5. OFFER GENERATION APIs (SALES ONLY - Token Required)
-
-### 5.1 Get Applications Ready for Offer
-**Endpoint:** `GET /api/offer/approved`  
-**Access:** SALES ONLY
-
-**Headers:**
-```
-Authorization: Bearer SALES_TOKEN_HERE
-```
-
-**Success Response (200 OK):**
-```json
-[
-  {
-    "appId": "wxyz9876-5432-10ab-cdef-1234567890ab",
-    "fullName": "Jane Smith",
-    "email": "jane@example.com",
-    "phoneNumber": "9123456789",
-    "dateOfBirth": "1992-03-10",
-    "address": "456 Oak Avenue, Suite 10, Los Angeles, CA 90001",
-    "aadhar": "987654321098",
-    "pan": "XYZAB9876C",
-    "incomeProof": "income_tax_return_2023.pdf",
-    "documentVerificationStatus": "APPROVED",
-    "offerStatus": "IN_PROGRESS",
-    "submittedByRole": "USER",
-    "submittedById": "87654321-abcd-ef01-2345-67890abcdef0",
-    "submittedAt": "2024-10-18T09:15:00",
-    "updatedAt": "2024-10-18T16:45:00"
-  }
-]
-```
-
-**Error Response (403 Forbidden) - If USER token is used:**
-```json
-{
-  "error": "Access Denied"
-}
-```
-
----
-
-### 5.2 Generate Credit Score
-**Endpoint:** `GET /api/offer/credit-score/{appId}`  
-**Access:** SALES ONLY
-
-**Headers:**
-```
-Authorization: Bearer SALES_TOKEN_HERE
-```
-
-**Success Response (200 OK):**
-```json
-{
-  "appId": "wxyz9876-5432-10ab-cdef-1234567890ab",
-  "fullName": "Jane Smith",
-  "creditScore": 785,
-  "creditRating": "Excellent",
-  "generatedAt": "2024-10-19T12:30:00.000+00:00"
-}
-```
-
-**Credit Rating Scale:**
-- 750-850: "Excellent"
-- 700-749: "Good"
-- 650-699: "Fair"
-- 600-649: "Poor"
-- 300-599: "Very Poor"
-
----
-
-### 5.3 Process Offer - APPROVE
-**Endpoint:** `POST /api/offer/process`  
-**Access:** SALES ONLY
-
-**Headers:**
-```
-Authorization: Bearer SALES_TOKEN_HERE
-Content-Type: application/json
-```
-
-**Request:**
-```json
-{
-  "appId": "wxyz9876-5432-10ab-cdef-1234567890ab",
-  "action": "APPROVED",
-  "creditScore": 785
-}
-```
-
-**Success Response (200 OK):**
-```json
-{
-  "appId": "wxyz9876-5432-10ab-cdef-1234567890ab",
-  "fullName": "Jane Smith",
-  "email": "jane@example.com",
-  "phoneNumber": "9123456789",
-  "dateOfBirth": "1992-03-10",
-  "address": "456 Oak Avenue, Suite 10, Los Angeles, CA 90001",
-  "aadhar": "987654321098",
-  "pan": "XYZAB9876C",
-  "incomeProof": "income_tax_return_2023.pdf",
-  "documentVerificationStatus": "APPROVED",
-  "offerStatus": "APPROVED",
-  "submittedByRole": "USER",
-  "submittedById": "87654321-abcd-ef01-2345-67890abcdef0",
-  "submittedAt": "2024-10-18T09:15:00",
-  "updatedAt": "2024-10-19T12:45:00"
-}
-```
-
----
-
-### 5.4 Process Offer - REJECT
-**Endpoint:** `POST /api/offer/process`  
-**Access:** SALES ONLY
-
-**Headers:**
-```
-Authorization: Bearer SALES_TOKEN_HERE
-Content-Type: application/json
-```
-
-**Request:**
-```json
-{
-  "appId": "qrst5678-9012-34ef-ghij-567890123456",
-  "action": "REJECTED",
-  "rejectReason": "Credit score is below minimum threshold. Income is insufficient for the requested credit limit.",
-  "creditScore": 580
-}
-```
-
-**Success Response (200 OK):**
-```json
-{
-  "appId": "qrst5678-9012-34ef-ghij-567890123456",
-  "fullName": "Michael Brown",
-  "email": "michael@example.com",
-  "phoneNumber": "9988776655",
-  "dateOfBirth": "1988-11-25",
-  "address": "321 Elm Street, Boston, MA 02101",
-  "aadhar": "112233445566",
-  "pan": "LMNOP1122Q",
-  "incomeProof": "bank_statement_6months.pdf",
-  "documentVerificationStatus": "APPROVED",
-  "offerStatus": "REJECTED",
-  "submittedByRole": "SALES",
-  "submittedById": "98765432-10ab-cdef-1234-567890abcdef",
-  "submittedAt": "2024-10-17T14:30:00",
-  "updatedAt": "2024-10-19T13:00:00"
-}
-```
-
----
-
-## 6. COMMON ERROR RESPONSES
-
-### 6.1 Unauthorized (No Token)
-**Status:** 401 Unauthorized
-```json
-{
-  "error": "Full authentication is required to access this resource"
-}
-```
-
----
-
-### 6.2 Invalid Token
-**Status:** 401 Unauthorized
-```json
-{
-  "error": "Invalid JWT token"
-}
-```
-
----
-
-### 6.3 Forbidden (Wrong Role)
-**Status:** 403 Forbidden
-```json
-{
-  "error": "Access Denied"
-}
-```
-
----
-
-### 6.4 Not Found
-**Status:** 404 Not Found
-```json
-{
-  "error": "Application not found"
-}
-```
-
----
-
-### 6.5 Validation Errors
-**Status:** 400 Bad Request
-```json
-{
-  "fullName": "Full name is required",
-  "phoneNumber": "Phone number must be 10 digits",
-  "aadhar": "Aadhar must be 12 digits",
-  "pan": "Invalid PAN format",
-  "dateOfBirth": "Date of birth must be in the past"
-}
-```
-
----
-
-## 7. ACCESS CONTROL SUMMARY
-
-### USER Role Access:
-| Endpoint | Access |
-|----------|--------|
-| `POST /api/auth/signup` | ✅ Public |
-| `POST /api/auth/login` | ✅ Public |
-| `POST /api/application/submit` | ✅ Yes |
-| `GET /api/application/my-applications` | ✅ Yes |
-| `GET /api/application/{appId}` | ✅ Yes |
-| `PUT /api/application/update/{appId}` | ✅ Yes |
-| `GET /api/onboarding/all` | ❌ No (403 Forbidden) |
-| `GET /api/document-verification/pending` | ❌ No (403 Forbidden) |
-| `POST /api/document-verification/verify` | ❌ No (403 Forbidden) |
-| `GET /api/offer/approved` | ❌ No (403 Forbidden) |
-| `GET /api/offer/credit-score/{appId}` | ❌ No (403 Forbidden) |
-| `POST /api/offer/process` | ❌ No (403 Forbidden) |
-
-### SALES Role Access:
-| Endpoint | Access |
-|----------|--------|
-| `POST /api/auth/login` | ✅ Public |
-| `POST /api/application/submit` | ✅ Yes |
-| `GET /api/application/my-applications` | ✅ Yes |
-| `GET /api/application/{appId}` | ✅ Yes |
-| `PUT /api/application/update/{appId}` | ✅ Yes |
-| `GET /api/onboarding/all` | ✅ Yes |
-| `GET /api/document-verification/pending` | ✅ Yes |
-| `POST /api/document-verification/verify` | ✅ Yes |
-| `GET /api/offer/approved` | ✅ Yes |
-| `GET /api/offer/credit-score/{appId}` | ✅ Yes |
-| `POST /api/offer/process` | ✅ Yes |
-
----
-
-## 8. COMPLETE TESTING WORKFLOW
-
-### Step 1: Create User Account
-```bash
-curl -X POST http://localhost:8080/api/auth/signup \
-  -H "Content-Type: application/json" \
-  -d '{
-    "firstName": "Test",
-    "lastName": "User",
-    "email": "testuser@example.com",
-    "password": "password123"
-  }'
-```
-
-### Step 2: User Submits Application
-```bash
-curl -X POST http://localhost:8080/api/application/submit \
-  -H "Authorization: Bearer USER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fullName": "Test User",
-    "email": "testuser@example.com",
-    "phoneNumber": "9876543210",
-    "dateOfBirth": "1995-06-15",
-    "address": "123 Test Street, Test City, TS 12345",
-    "aadhar": "123456789012",
-    "pan": "ABCDE1234F",
-    "incomeProof": "salary_slip.pdf"
-  }'
-```
-
-### Step 3: User Views Applications
-```bash
-curl -X GET http://localhost:8080/api/application/my-applications \
-  -H "Authorization: Bearer USER_TOKEN"
-```
-
-### Step 4: Sales Login
-```bash
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "sales@example.com",
-    "password": "sales123"
-  }'
-```
-
-### Step 5: Sales Views All Applications
-```bash
-curl -X GET http://localhost:8080/api/onboarding/all \
-  -H "Authorization: Bearer SALES_TOKEN"
-```
-
-### Step 6: Sales Views Pending Verifications
-```bash
-curl -X GET http://localhost:8080/api/document-verification/pending \
-  -H "Authorization: Bearer SALES_TOKEN"
-```
-
-### Step 7: Sales Approves Document
-```bash
-curl -X POST http://localhost:8080/api/document-verification/verify \
-  -H "Authorization: Bearer SALES_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "appId": "YOUR_APP_ID",
-    "action": "APPROVED"
-  }'
-```
-
-### Step 8: Sales Views Applications Ready for Offer
-```bash
-curl -X GET http://localhost:8080/api/offer/approved \
-  -H "Authorization: Bearer SALES_TOKEN"
-```
-
-### Step 9: Sales Generates Credit Score
-```bash
-curl -X GET http://localhost:8080/api/offer/credit-score/YOUR_APP_ID \
-  -H "Authorization: Bearer SALES_TOKEN"
-```
-
-### Step 10: Sales Approves Offer
-```bash
-curl -X POST http://localhost:8080/api/offer/process \
-  -H "Authorization: Bearer SALES_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "appId": "YOUR_APP_ID",
-    "action": "APPROVED",
-    "creditScore": 750
-  }'
-```
-
----
-
-## 9. HTTP STATUS CODES
-
-| Code | Meaning |
-|------|---------|
-| 200 | OK - Request successful |
-| 400 | Bad Request - Validation error or bad data |
-| 401 | Unauthorized - Missing or invalid token |
-| 403 | Forbidden - Wrong role/permissions |
-| 404 | Not Found - Resource doesn't exist |
-| 500 | Internal Server Error - Server error |
