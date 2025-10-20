@@ -25,3 +25,203 @@
 </body>
 
 </html>
+
+
+
+
+
+
+
+
+# Credit Card API Documentation
+
+Base URL: http://localhost:8080
+
+
+## 1. User Signup
+
+Endpoint: POST /api/auth/signup
+
+Creates a new user account and returns authentication token.
+
+Request:
+{
+  "firstName": "Ayyappa",
+  "lastName": "Kandula",
+  "email": "Kandula@example.com",
+  "password": "123456"
+}
+
+Response:
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInVzZXJJZCI6IjYwNjc4ZmJjLWJjZmItNDAzYy1hOTQ5LTViOTE0YTdmMjJiMSIsInN1YiI6IkthbmR1bGFAZXhhbXBsZS5jb20iLCJpYXQiOjE3NjA5NDk2NTgsImV4cCI6MTc2MTAzNjA1OH0.M9QL15P_RMo_fUysQHpDdNq229mvDv9uxLgzfLDjiTE",
+  "type": "Bearer",
+  "userId": "60678fbc-bcfb-403c-a949-5b914a7f22b1",
+  "email": "Kandula@example.com",
+  "firstName": "Ayyappa",
+  "lastName": "Kandula",
+  "role": "USER"
+}
+
+---
+
+## 2. User Login
+
+Endpoint: POST /api/auth/login
+
+Authenticates existing user and returns authentication token.
+
+Request:
+{
+  "email": "Kandula@example.com",
+  "password": "123456"
+}
+
+Response:
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInVzZXJJZCI6IjYwNjc4ZmJjLWJjZmItNDAzYy1hOTQ5LTViOTE0YTdmMjJiMSIsInN1YiI6IkthbmR1bGFAZXhhbXBsZS5jb20iLCJpYXQiOjE3NjA5NDk2NTgsImV4cCI6MTc2MTAzNjA1OH0.M9QL15P_RMo_fUysQHpDdNq229mvDv9uxLgzfLDjiTE",
+  "type": "Bearer",
+  "userId": "60678fbc-bcfb-403c-a949-5b914a7f22b1",
+  "email": "Kandula@example.com",
+  "firstName": "Ayyappa",
+  "lastName": "Kandula",
+  "role": "USER"
+}
+
+---
+
+## 3. Submit Application
+
+Endpoint: POST /api/application/submit
+
+Submits a new credit card application with required documents.
+
+Headers:
+Authorization: Bearer {token}
+
+Request: (multipart/form-data)
+fullName: John Doe
+email: john@example.com
+phoneNumber: 9876543210
+dateOfBirth: 1990-01-15
+address: 123 Main Street, City, State - 500001
+cardType: GOLD
+aadharPdf: (PDF file)
+panPdf: (PDF file)
+incomeProofPdf: (PDF file - optional)
+
+Response:
+{
+  "message": "Application submitted successfully",
+  "applicationId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+  "status": "PENDING"
+}
+
+---
+
+## 4. Get My Applications
+
+Endpoint: GET /api/application/my-applications
+
+Retrieves all applications submitted by the authenticated user.
+
+Headers:
+Authorization: Bearer {token}
+
+Response:
+[
+  {
+    "id": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+    "fullName": "John Doe",
+    "email": "john@example.com",
+    "phoneNumber": "9876543210",
+    "dateOfBirth": "1990-01-15",
+    "address": "123 Main Street, City, State - 500001",
+    "cardType": "GOLD",
+    "status": "PENDING",
+    "aadharFilename": "aadhar_123.pdf",
+    "panFilename": "pan_123.pdf",
+    "incomeProofFilename": "income_123.pdf",
+    "submittedAt": "2024-10-20T10:30:00",
+    "updatedAt": "2024-10-20T10:30:00"
+  }
+]
+
+---
+
+## 5. Get Application by ID
+
+Endpoint: GET /api/application/{applicationId}
+
+Retrieves a specific application by its ID.
+
+Headers:
+Authorization: Bearer {token}
+
+Response:
+{
+  "id": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+  "fullName": "John Doe",
+  "email": "john@example.com",
+  "phoneNumber": "9876543210",
+  "dateOfBirth": "1990-01-15",
+  "address": "123 Main Street, City, State - 500001",
+  "cardType": "GOLD",
+  "status": "PENDING",
+  "aadharFilename": "aadhar_123.pdf",
+  "panFilename": "pan_123.pdf",
+  "incomeProofFilename": "income_123.pdf",
+  "submittedAt": "2024-10-20T10:30:00",
+  "updatedAt": "2024-10-20T10:30:00"
+}
+
+---
+
+## 6. Update Application
+
+Endpoint: PUT /api/application/update/{applicationId}
+
+Updates an existing application with new information and/or documents.
+
+Headers:
+Authorization: Bearer {token}
+
+Request: (multipart/form-data)
+fullName: John Updated Doe
+email: johnupdated@example.com
+phoneNumber: 9876543211
+dateOfBirth: 1990-01-15
+address: 456 New Street, City, State - 500002
+cardType: PLATINUM
+aadharPdf: (PDF file - optional, only if updating)
+panPdf: (PDF file - optional, only if updating)
+incomeProofPdf: (PDF file - optional, only if updating)
+
+Response:
+{
+  "message": "Application updated successfully",
+  "applicationId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+  "status": "PENDING"
+}
+
+---
+
+## 7. Download Document
+
+Endpoint: GET /api/application/{applicationId}/download/{documentType}
+
+Downloads a specific document from an application.
+
+Headers:
+Authorization: Bearer {token}
+
+Document Types:
+aadhar
+pan
+income-proof
+
+Response:
+PDF file download
+
+
+
