@@ -26,1025 +26,918 @@
 
 </html>
 
-
-
-//
-
-package com.credit.backend.model;
-
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-@Entity
-@Table(name = "application_details")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApplicationDetails {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
-    private Long id;
-
-    @Column(name = "app_id", nullable = false)
-    private UUID appId;
-
-    @Column(name = "full_name", nullable = false, length = 100)
-    private String fullName;
-
-    @Column(name = "email", nullable = false, length = 100)
-    private String email;
-
-    @Column(name = "phone_number", nullable = false, length = 20)
-    private String phoneNumber;
-
-    @Column(name = "date_of_birth", nullable = false)
-    private LocalDate dateOfBirth;
-
-    @Column(name = "address", nullable = false, columnDefinition = "TEXT")
-    private String address;
-
-    // FIXED: Use @JdbcTypeCode for Hibernate 6.x
-    @JdbcTypeCode(SqlTypes.BINARY)
-    @Column(name = "aadhar_pdf")
-    private byte[] aadharPdf;
-
-    @Column(name = "aadhar_filename", length = 255)
-    private String aadharFilename;
-
-    @JdbcTypeCode(SqlTypes.BINARY)
-    @Column(name = "pan_pdf")
-    private byte[] panPdf;
-
-    @Column(name = "pan_filename", length = 255)
-    private String panFilename;
-
-    @JdbcTypeCode(SqlTypes.BINARY)
-    @Column(name = "income_proof_pdf")
-    private byte[] incomeProofPdf;
-
-    @Column(name = "income_proof_filename", length = 255)
-    private String incomeProofFilename;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "card_type", length = 20)
-    private CardType cardType;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    public enum CardType {
-        GOLD, SILVER, PLATINUM
-    }
-
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
-    }
-}
-
-
-
-
-package com.credit.backend.model;
-
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-@Entity
-@Table(name = "application_status")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApplicationStatus {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "status_id")
-    private Long statusId;
-
-    @Column(name = "app_id", nullable = false, unique = true)
-    private UUID appId;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "document_verification_status", nullable = false)
-    private VerificationStatus documentVerificationStatus = VerificationStatus.IN_PROGRESS;
-
-    @Column(name = "document_reject_reason", columnDefinition = "TEXT")
-    private String documentRejectReason;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "offer_status", nullable = false)
-    private OfferStatus offerStatus = OfferStatus.IN_PROGRESS;
-
-    @Column(name = "offer_reject_reason", columnDefinition = "TEXT")
-    private String offerRejectReason;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
-
-    public enum VerificationStatus {
-        IN_PROGRESS, APPROVED, REJECTED
-    }
-
-    public enum OfferStatus {
-        IN_PROGRESS, APPROVED, REJECTED
-    }
-
-    @PrePersist
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
-}
-
-
-
-
-
-	package com.credit.backend.model;
-
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-@Entity
-@Table(name = "application_submitter")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class ApplicationSubmitter {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "app_id")
-    private UUID appId;
-
-    @Column(name = "submitted_by_user_or_sales_id", nullable = false)
-    private UUID submittedByUserOrSalesId;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "submitted_by_role", nullable = false)
-    private SubmittedByRole submittedByRole;
-
-    @Column(name = "submitted_at", nullable = false, updatable = false)
-    private LocalDateTime submittedAt = LocalDateTime.now();
-
-    public enum SubmittedByRole {
-        USER, SALES
-    }
-
-    @PrePersist
-    protected void onCreate() {
-        submittedAt = LocalDateTime.now();
-    }
-}
-
-
-
-
-
-package com.credit.backend.model;
-
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-@Entity
-@Table(name = "users")
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class User {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "user_id")
-    private UUID userId;
-
-    @Column(name = "first_name", nullable = false, length = 50)
-    private String firstName;
-
-    @Column(name = "last_name", nullable = false, length = 50)
-    private String lastName;
-
-    @Column(name = "email", nullable = false, unique = true, length = 100)
-    private String email;
-
-    @Column(name = "password", nullable = false, length = 255)
-    private String password;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false)
-    private Role role = Role.USER;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    public enum Role {
-        USER, SALES
-    }
-
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-    }
-}
-
-
-
-
-
-package com.credit.backend.security;
-
-import com.credit.backend.util.JwtUtil;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
-import java.io.IOException;
-
-@Component
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
-
-    @Autowired
-    private JwtUtil jwtUtil;
-
-    @Autowired
-    private UserDetailsService userDetailsService;
-
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
-
-        final String authorizationHeader = request.getHeader("Authorization");
-
-        String email = null;
-        String jwt = null;
-
-        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            jwt = authorizationHeader.substring(7);
-            email = jwtUtil.extractEmail(jwt);
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credit Card API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(email);
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
 
-            if (jwtUtil.validateToken(jwt, userDetails.getUsername())) {
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .token-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .token-section input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background: #e0e0e0;
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        button[type="submit"] {
+            background: #667eea;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        button[type="submit"]:hover {
+            background: #5568d3;
+        }
+
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .response h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .response pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+
+        .error {
+            border-left-color: #e53e3e;
+        }
+
+        .success {
+            border-left-color: #48bb78;
+        }
+
+        .file-input {
+            padding: 5px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .doc-button {
+            border: none;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .doc-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-view {
+            background: #0369a1;
+            color: white;
+        }
+
+        .btn-view:hover {
+            background: #075985;
+        }
+
+        .btn-download {
+            background: #059669;
+            color: white;
+        }
+
+        .btn-download:hover {
+            background: #047857;
+        }
+
+        .file-info {
+            background: #f0f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #bae6fd;
+        }
+
+        .file-info h4 {
+            margin: 0 0 12px 0;
+            color: #0369a1;
+            font-size: 16px;
+        }
+
+        .file-row {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .file-row strong {
+            min-width: 120px;
+            color: #374151;
+        }
+
+        .file-row span {
+            flex: 1;
+            color: #6b7280;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .file-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .file-row strong {
+                min-width: auto;
             }
         }
-        chain.doFilter(request, response);
-    }
-}
+    </style>
+</head>
 
+<body>
+    <div class="container">
+        <h1>🔵 Credit Card API Tester</h1>
+        <p class="subtitle">Test all API endpoints for the credit card application system</p>
 
+        <div class="token-section">
+            <label>🔑 Authorization Token (Set after login/signup)</label>
+            <input type="text" id="authToken" placeholder="Your JWT token will appear here after login">
+        </div>
 
+        <div class="tabs">
+            <button class="tab active" onclick="showSection('signup')">Signup</button>
+            <button class="tab" onclick="showSection('login')">Login</button>
+            <button class="tab" onclick="showSection('submit')">Submit Application</button>
+            <button class="tab" onclick="showSection('myapps')">My Applications</button>
+            <button class="tab" onclick="showSection('getapp')">Get Application</button>
+            <button class="tab" onclick="showSection('update')">Update Application</button>
+            <button class="tab" onclick="showSection('download')">Download Documents</button>
+        </div>
 
+        <!-- Signup Section -->
+        <div id="signup" class="section active">
+            <h2>📝 User Signup</h2>
+            <form onsubmit="handleSignup(event)">
+                <div class="grid">
+                    <div class="form-group">
+                        <label>First Name *</label>
+                        <input type="text" name="firstName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name *</label>
+                        <input type="text" name="lastName" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password *</label>
+                    <input type="password" name="password" required>
+                </div>
+                <button type="submit">Create Account</button>
+            </form>
+            <div id="signupResponse"></div>
+        </div>
 
+        <!-- Login Section -->
+        <div id="login" class="section">
+            <h2>🔐 User Login</h2>
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password *</label>
+                    <input type="password" name="password" required>
+                </div>
+                <button type="submit">Login</button>
+            </form>
+            <div id="loginResponse"></div>
+        </div>
 
-package com.credit.backend.service;
+        <!-- Submit Application Section -->
+        <div id="submit" class="section">
+            <h2>📋 Submit Application</h2>
+            <form onsubmit="handleSubmit(event)">
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Full Name *</label>
+                        <input type="text" name="fullName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email *</label>
+                        <input type="email" name="email" required>
+                    </div>
+                </div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Phone Number *</label>
+                        <input type="tel" name="phoneNumber" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Birth *</label>
+                        <input type="date" name="dateOfBirth" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Address *</label>
+                    <textarea name="address" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Card Type *</label>
+                    <select name="cardType" required>
+                        <option value="">Select Card Type</option>
+                        <option value="GOLD">GOLD</option>
+                        <option value="PLATINUM">PLATINUM</option>
+                        <option value="SILVER">SILVER</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Aadhar PDF *</label>
+                    <input type="file" name="aadharPdf" accept=".pdf" required class="file-input">
+                </div>
+                <div class="form-group">
+                    <label>PAN PDF *</label>
+                    <input type="file" name="panPdf" accept=".pdf" required class="file-input">
+                </div>
+                <div class="form-group">
+                    <label>Income Proof PDF (Optional)</label>
+                    <input type="file" name="incomeProofPdf" accept=".pdf" class="file-input">
+                </div>
+                <button type="submit">Submit Application</button>
+            </form>
+            <div id="submitResponse"></div>
+        </div>
 
-import com.credit.backend.dao.*;
-import com.credit.backend.dto.*;
-import com.credit.backend.model.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
+        <!-- My Applications Section -->
+        <div id="myapps" class="section">
+            <h2>📂 My Applications</h2>
+            <button onclick="handleMyApplications()"
+                style="background: #667eea; color: white; padding: 12px 30px; border: none; border-radius: 5px; cursor: pointer;">Get
+                My Applications</button>
+            <div id="myappsResponse"></div>
+        </div>
 
-import java.io.IOException;
-import java.time.LocalDate;
-import java.util.*;
-import java.util.stream.Collectors;
+        <!-- Get Application Section -->
+        <div id="getapp" class="section">
+            <h2>🔍 Get Application by ID</h2>
+            <form onsubmit="handleGetApplication(event)">
+                <div class="form-group">
+                    <label>Application ID *</label>
+                    <input type="text" name="appId" required placeholder="e.g., abcd1234-5678-90ef-ghij-klmnopqrstuv">
+                </div>
+                <button type="submit">Get Application</button>
+            </form>
+            <div id="getappResponse"></div>
+        </div>
 
-@Service
-public class ApplicationService {
+        <!-- Update Application Section -->
+        <div id="update" class="section">
+            <h2>✏️ Update Application</h2>
+            <form onsubmit="handleUpdate(event)" id="updateForm">
+                <div class="form-group">
+                    <label>Application ID *</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="updateAppId" name="appId" required
+                            placeholder="e.g., abcd1234-5678-90ef-ghij-klmnopqrstuv" style="flex: 1;">
+                        <button type="button" onclick="loadApplicationData()"
+                            style="background: #48bb78; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Load
+                            Data</button>
+                    </div>
+                </div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Full Name *</label>
+                        <input type="text" id="updateFullName" name="fullName" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Email *</label>
+                        <input type="email" id="updateEmail" name="email" required autocomplete="off">
+                    </div>
+                </div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Phone Number *</label>
+                        <input type="tel" id="updatePhoneNumber" name="phoneNumber" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Birth *</label>
+                        <input type="date" id="updateDateOfBirth" name="dateOfBirth" required autocomplete="off">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Address *</label>
+                    <textarea id="updateAddress" name="address" required autocomplete="off"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Card Type *</label>
+                    <select id="updateCardType" name="cardType" required autocomplete="off">
+                        <option value="">Select Card Type</option>
+                        <option value="GOLD">GOLD</option>
+                        <option value="PLATINUM">PLATINUM</option>
+                        <option value="SILVER">SILVER</option>
+                    </select>
+                </div>
+                <div id="currentFilesInfo" style="display: none;"></div>
+                <div class="form-group">
+                    <label>Aadhar PDF (Optional - only if updating)</label>
+                    <input type="file" name="aadharPdf" accept=".pdf" class="file-input">
+                </div>
+                <div class="form-group">
+                    <label>PAN PDF (Optional - only if updating)</label>
+                    <input type="file" name="panPdf" accept=".pdf" class="file-input">
+                </div>
+                <div class="form-group">
+                    <label>Income Proof PDF (Optional - only if updating)</label>
+                    <input type="file" name="incomeProofPdf" accept=".pdf" class="file-input">
+                </div>
+                <button type="submit">Update Application</button>
+            </form>
+            <div id="updateResponse"></div>
+        </div>
 
-    @Autowired
-    private ApplicationSubmitterRepository submitterRepository;
+        <!-- Download Section -->
+        <div id="download" class="section">
+            <h2>📥 Download Documents</h2>
+            <form onsubmit="handleDownload(event)">
+                <div class="form-group">
+                    <label>Application ID *</label>
+                    <input type="text" name="appId" required placeholder="e.g., abcd1234-5678-90ef-ghij-klmnopqrstuv">
+                </div>
+                <div class="form-group">
+                    <label>Document Type *</label>
+                    <select name="docType" required>
+                        <option value="">Select Document</option>
+                        <option value="aadhar">Aadhar PDF</option>
+                        <option value="pan">PAN PDF</option>
+                        <option value="income-proof">Income Proof PDF</option>
+                    </select>
+                </div>
+                <button type="submit">Download Document</button>
+            </form>
+            <div id="downloadResponse"></div>
+        </div>
+    </div>
 
-    @Autowired
-    private ApplicationDetailsRepository detailsRepository;
+    <script>
+        const API_BASE = 'http://localhost:8080';
 
-    @Autowired
-    private ApplicationStatusRepository statusRepository;
+        // Store blob URLs for cleanup
+        let openPreviewUrls = [];
 
-    @Autowired
-    private UserRepository userRepository;
+        function showSection(section) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(section).classList.add('active');
+            event.target.classList.add('active');
 
-    @Transactional
-    public ApplicationDetailResponse submitApplication(
-            String fullName, String email, String phoneNumber, String dateOfBirth,
-            String address, String cardType,
-            MultipartFile aadharPdf, MultipartFile panPdf, MultipartFile incomeProofPdf,
-            UUID userId, String role) throws IOException {
-
-        // Validate PDF files
-        validatePdfFile(aadharPdf, "Aadhar");
-        validatePdfFile(panPdf, "PAN");
-        if (incomeProofPdf != null && !incomeProofPdf.isEmpty()) {
-            validatePdfFile(incomeProofPdf, "Income Proof");
+            // Clean up any preview URLs when switching sections
+            cleanupPreviewUrls();
         }
 
-        // Create application submitter
-        ApplicationSubmitter submitter = new ApplicationSubmitter();
-        submitter.setSubmittedByUserOrSalesId(userId);
-        submitter.setSubmittedByRole(ApplicationSubmitter.SubmittedByRole.valueOf(role));
-        submitter = submitterRepository.save(submitter);
-
-        // Create application details
-        ApplicationDetails details = new ApplicationDetails();
-        details.setAppId(submitter.getAppId());
-        details.setFullName(fullName);
-        details.setEmail(email);
-        details.setPhoneNumber(phoneNumber);
-        details.setDateOfBirth(LocalDate.parse(dateOfBirth));
-        details.setAddress(address);
-
-        // Store PDF files
-        details.setAadharPdf(aadharPdf.getBytes());
-        details.setAadharFilename(aadharPdf.getOriginalFilename());
-
-        details.setPanPdf(panPdf.getBytes());
-        details.setPanFilename(panPdf.getOriginalFilename());
-
-        if (incomeProofPdf != null && !incomeProofPdf.isEmpty()) {
-            details.setIncomeProofPdf(incomeProofPdf.getBytes());
-            details.setIncomeProofFilename(incomeProofPdf.getOriginalFilename());
+        function cleanupPreviewUrls() {
+            openPreviewUrls.forEach(url => {
+                try {
+                    window.URL.revokeObjectURL(url);
+                } catch (e) {
+                    console.log('Error cleaning up URL:', e);
+                }
+            });
+            openPreviewUrls = [];
         }
 
-        // Set card type
-        details.setCardType(ApplicationDetails.CardType.valueOf(cardType));
+        // Clean up when page is closed/refreshed
+        window.addEventListener('beforeunload', cleanupPreviewUrls);
 
-        detailsRepository.save(details);
-
-        // Create application status
-        ApplicationStatus status = new ApplicationStatus();
-        status.setAppId(submitter.getAppId());
-        status.setDocumentVerificationStatus(ApplicationStatus.VerificationStatus.IN_PROGRESS);
-        status.setOfferStatus(ApplicationStatus.OfferStatus.IN_PROGRESS);
-        statusRepository.save(status);
-
-        return mapToDetailResponse(submitter, details, status);
-    }
-
-    @Transactional
-    public ApplicationDetailResponse updateApplication(
-            UUID appId, String fullName, String email, String phoneNumber,
-            String dateOfBirth, String address, String cardType,
-            MultipartFile aadharPdf, MultipartFile panPdf, MultipartFile incomeProofPdf) throws IOException {
-
-        ApplicationDetails details = detailsRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-
-        details.setFullName(fullName);
-        details.setEmail(email);
-        details.setPhoneNumber(phoneNumber);
-        details.setDateOfBirth(LocalDate.parse(dateOfBirth));
-        details.setAddress(address);
-        details.setCardType(ApplicationDetails.CardType.valueOf(cardType));
-
-        // Update files only if new files are provided
-        if (aadharPdf != null && !aadharPdf.isEmpty()) {
-            validatePdfFile(aadharPdf, "Aadhar");
-            details.setAadharPdf(aadharPdf.getBytes());
-            details.setAadharFilename(aadharPdf.getOriginalFilename());
+        function displayResponse(elementId, data, isError = false) {
+            const el = document.getElementById(elementId);
+            const className = isError ? 'error' : 'success';
+            el.innerHTML = `
+                <div class="response ${className}">
+                    <h3>${isError ? '❌ Error' : '✅ Success'}</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
         }
 
-        if (panPdf != null && !panPdf.isEmpty()) {
-            validatePdfFile(panPdf, "PAN");
-            details.setPanPdf(panPdf.getBytes());
-            details.setPanFilename(panPdf.getOriginalFilename());
-        }
+        async function handleSignup(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                firstName: formData.get('firstName'),
+                lastName: formData.get('lastName'),
+                email: formData.get('email'),
+                password: formData.get('password')
+            };
 
-        if (incomeProofPdf != null && !incomeProofPdf.isEmpty()) {
-            validatePdfFile(incomeProofPdf, "Income Proof");
-            details.setIncomeProofPdf(incomeProofPdf.getBytes());
-            details.setIncomeProofFilename(incomeProofPdf.getOriginalFilename());
-        }
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/signup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
 
-        detailsRepository.save(details);
-
-        ApplicationSubmitter submitter = submitterRepository.findById(appId)
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-        ApplicationStatus status = statusRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application status not found"));
-
-        return mapToDetailResponse(submitter, details, status);
-    }
-
-    public List<OnboardingResponse> getAllApplications() {
-        List<ApplicationSubmitter> submitters = submitterRepository.findAll();
-
-        return submitters.stream().map(submitter -> {
-            ApplicationDetails details = detailsRepository.findByAppId(submitter.getAppId()).orElse(null);
-            ApplicationStatus status = statusRepository.findByAppId(submitter.getAppId()).orElse(null);
-
-            OnboardingResponse response = new OnboardingResponse();
-            response.setAppId(submitter.getAppId());
-            response.setUserId(submitter.getSubmittedByUserOrSalesId());
-            response.setFullName(details != null ? details.getFullName() : "N/A");
-            response.setPhoneNumber(details != null ? details.getPhoneNumber() : "N/A");
-            response.setStatus(status != null ? status.getDocumentVerificationStatus().name() : "N/A");
-            response.setSubmittedBy(submitter.getSubmittedByRole().name());
-            response.setSubmittedAt(submitter.getSubmittedAt());
-
-            return response;
-        }).collect(Collectors.toList());
-    }
-
-    public ApplicationDetailResponse getApplicationById(UUID appId) {
-        ApplicationSubmitter submitter = submitterRepository.findById(appId)
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-        ApplicationDetails details = detailsRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application details not found"));
-        ApplicationStatus status = statusRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application status not found"));
-
-        return mapToDetailResponse(submitter, details, status);
-    }
-
-    public List<ApplicationDetailResponse> getApplicationsByUserId(UUID userId) {
-        List<ApplicationSubmitter> submitters = submitterRepository.findBySubmittedByUserOrSalesId(userId);
-
-        return submitters.stream().map(submitter -> {
-            ApplicationDetails details = detailsRepository.findByAppId(submitter.getAppId()).orElse(null);
-            ApplicationStatus status = statusRepository.findByAppId(submitter.getAppId()).orElse(null);
-
-            if (details != null && status != null) {
-                return mapToDetailResponse(submitter, details, status);
+                if (response.ok) {
+                    document.getElementById('authToken').value = result.token;
+                    displayResponse('signupResponse', result);
+                } else {
+                    displayResponse('signupResponse', result, true);
+                }
+            } catch (error) {
+                displayResponse('signupResponse', { error: error.message }, true);
             }
-            return null;
-        }).filter(Objects::nonNull).collect(Collectors.toList());
-    }
-
-    // NEW: Methods to retrieve PDF files
-    public byte[] getAadharPdf(UUID appId) {
-        ApplicationDetails details = detailsRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-        if (details.getAadharPdf() == null) {
-            throw new RuntimeException("Aadhar PDF not found");
-        }
-        return details.getAadharPdf();
-    }
-
-    public String getAadharFilename(UUID appId) {
-        ApplicationDetails details = detailsRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-        return details.getAadharFilename();
-    }
-
-    public byte[] getPanPdf(UUID appId) {
-        ApplicationDetails details = detailsRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-        if (details.getPanPdf() == null) {
-            throw new RuntimeException("PAN PDF not found");
-        }
-        return details.getPanPdf();
-    }
-
-    public String getPanFilename(UUID appId) {
-        ApplicationDetails details = detailsRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-        return details.getPanFilename();
-    }
-
-    public byte[] getIncomeProofPdf(UUID appId) {
-        ApplicationDetails details = detailsRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-        if (details.getIncomeProofPdf() == null) {
-            throw new RuntimeException("Income Proof PDF not found");
-        }
-        return details.getIncomeProofPdf();
-    }
-
-    public String getIncomeProofFilename(UUID appId) {
-        ApplicationDetails details = detailsRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-        return details.getIncomeProofFilename();
-    }
-
-    private void validatePdfFile(MultipartFile file, String fieldName) {
-        if (file.isEmpty()) {
-            throw new RuntimeException(fieldName + " file is required");
-        }
-        if (!"application/pdf".equals(file.getContentType())) {
-            throw new RuntimeException(fieldName + " must be a PDF file");
-        }
-        // Max 5MB file size
-        if (file.getSize() > 5 * 1024 * 1024) {
-            throw new RuntimeException(fieldName + " file size must be less than 5MB");
-        }
-    }
-
-    private ApplicationDetailResponse mapToDetailResponse(ApplicationSubmitter submitter,
-                                                          ApplicationDetails details,
-                                                          ApplicationStatus status) {
-        ApplicationDetailResponse response = new ApplicationDetailResponse();
-        response.setAppId(submitter.getAppId());
-        response.setFullName(details.getFullName());
-        response.setEmail(details.getEmail());
-        response.setPhoneNumber(details.getPhoneNumber());
-        response.setDateOfBirth(details.getDateOfBirth());
-        response.setAddress(details.getAddress());
-
-        // Set filenames (not the actual bytes)
-        response.setAadharFilename(details.getAadharFilename());
-        response.setPanFilename(details.getPanFilename());
-        response.setIncomeProofFilename(details.getIncomeProofFilename());
-
-        // Set card type
-        response.setCardType(details.getCardType() != null ? details.getCardType().name() : null);
-
-        response.setDocumentVerificationStatus(status.getDocumentVerificationStatus().name());
-        response.setOfferStatus(status.getOfferStatus().name());
-        response.setSubmittedByRole(submitter.getSubmittedByRole().name());
-        response.setSubmittedById(submitter.getSubmittedByUserOrSalesId());
-        response.setSubmittedAt(submitter.getSubmittedAt());
-        response.setUpdatedAt(status.getUpdatedAt());
-
-        return response;
-    }
-}
-
-
-
-
-
-package com.credit.backend.service;
-
-import com.credit.backend.dao.UserRepository;
-import com.credit.backend.dto.AuthResponse;
-import com.credit.backend.dto.LoginRequest;
-import com.credit.backend.dto.SignUpRequest;
-import com.credit.backend.model.User;
-import com.credit.backend.util.JwtUtil;
-import com.credit.backend.util.PasswordEncoderUtil;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.stereotype.Service;
-import java.util.Collections;
-
-@Service
-public class AuthService implements UserDetailsService {
-
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private PasswordEncoderUtil passwordEncoderUtil;
-
-    @Autowired
-    private JwtUtil jwtUtil;
-
-    public AuthResponse signUp(SignUpRequest request) {
-        // Check if user already exists
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
         }
 
-        // Create new user
-        User user = new User();
-        user.setFirstName(request.getFirstName());
-        user.setLastName(request.getLastName());
-        user.setEmail(request.getEmail());
-        user.setPassword(passwordEncoderUtil.encode(request.getPassword()));
-        user.setRole(User.Role.USER);
+        async function handleLogin(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                email: formData.get('email'),
+                password: formData.get('password')
+            };
 
-        user = userRepository.save(user);
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
 
-        // Generate token
-        String token = jwtUtil.generateToken(user.getEmail(), user.getUserId(), user.getRole().name());
-
-        return new AuthResponse(token, user.getUserId(), user.getEmail(),
-                user.getFirstName(), user.getLastName(), user.getRole().name());
-    }
-
-    public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
-
-        if (!passwordEncoderUtil.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid email or password");
-        }
-
-        String token = jwtUtil.generateToken(user.getEmail(), user.getUserId(), user.getRole().name());
-
-        return new AuthResponse(token, user.getUserId(), user.getEmail(),
-                user.getFirstName(), user.getLastName(), user.getRole().name());
-    }
-
-    @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-
-        return new org.springframework.security.core.userdetails.User(
-                user.getEmail(),
-                user.getPassword(),
-                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().name()))
-        );
-    }
-}
-
-
-package com.credit.backend.service;
-
-import com.credit.backend.dao.ApplicationStatusRepository;
-import com.credit.backend.dao.ApplicationDetailsRepository;
-import com.credit.backend.dao.ApplicationSubmitterRepository;
-import com.credit.backend.dto.ApplicationDetailResponse;
-import com.credit.backend.dto.DocumentVerificationRequest;
-import com.credit.backend.model.ApplicationStatus;
-import com.credit.backend.model.ApplicationDetails;
-import com.credit.backend.model.ApplicationSubmitter;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import java.util.*;
-import java.util.stream.Collectors;
-
-@Service
-public class DocumentVerificationService {
-
-    @Autowired
-    private ApplicationStatusRepository statusRepository;
-
-    @Autowired
-    private ApplicationDetailsRepository detailsRepository;
-
-    @Autowired
-    private ApplicationSubmitterRepository submitterRepository;
-
-    // REPLACE the getPendingVerifications() method with this:
-    public List<ApplicationDetailResponse> getPendingVerifications() {
-        // Get ALL application statuses (not just IN_PROGRESS)
-        List<ApplicationStatus> allStatuses = statusRepository.findAll();
-
-        return allStatuses.stream().map(status -> {
-            ApplicationDetails details = detailsRepository.findByAppId(status.getAppId()).orElse(null);
-            ApplicationSubmitter submitter = submitterRepository.findById(status.getAppId()).orElse(null);
-
-            if (details != null && submitter != null) {
-                return mapToDetailResponse(submitter, details, status);
+                if (response.ok) {
+                    document.getElementById('authToken').value = result.token;
+                    displayResponse('loginResponse', result);
+                } else {
+                    displayResponse('loginResponse', result, true);
+                }
+            } catch (error) {
+                displayResponse('loginResponse', { error: error.message }, true);
             }
-            return null;
-        }).filter(Objects::nonNull).collect(Collectors.toList());
-    }
-
-    @Transactional
-    public ApplicationDetailResponse verifyDocument(DocumentVerificationRequest request) {
-        ApplicationStatus status = statusRepository.findByAppId(request.getAppId())
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-
-        if ("APPROVED".equalsIgnoreCase(request.getAction())) {
-            status.setDocumentVerificationStatus(ApplicationStatus.VerificationStatus.APPROVED);
-            status.setDocumentRejectReason(null);
-        } else if ("REJECTED".equalsIgnoreCase(request.getAction())) {
-            status.setDocumentVerificationStatus(ApplicationStatus.VerificationStatus.REJECTED);
-            status.setDocumentRejectReason(request.getRejectReason());
-        } else {
-            throw new RuntimeException("Invalid action. Use APPROVED or REJECTED");
         }
 
-        statusRepository.save(status);
-
-        ApplicationDetails details = detailsRepository.findByAppId(request.getAppId())
-                .orElseThrow(() -> new RuntimeException("Application details not found"));
-        ApplicationSubmitter submitter = submitterRepository.findById(request.getAppId())
-                .orElseThrow(() -> new RuntimeException("Application submitter not found"));
-
-        return mapToDetailResponse(submitter, details, status);
-    }
-
-    private ApplicationDetailResponse mapToDetailResponse(ApplicationSubmitter submitter,
-                                                          ApplicationDetails details,
-                                                          ApplicationStatus status) {
-        ApplicationDetailResponse response = new ApplicationDetailResponse();
-        response.setAppId(submitter.getAppId());
-        response.setFullName(details.getFullName());
-        response.setEmail(details.getEmail());
-        response.setPhoneNumber(details.getPhoneNumber());
-        response.setDateOfBirth(details.getDateOfBirth());
-        response.setAddress(details.getAddress());
-
-        // FIXED: Use filename getters
-        response.setAadharFilename(details.getAadharFilename());
-        response.setPanFilename(details.getPanFilename());
-        response.setIncomeProofFilename(details.getIncomeProofFilename());
-
-        // NEW: Set card type
-        response.setCardType(details.getCardType() != null ? details.getCardType().name() : null);
-
-        response.setDocumentVerificationStatus(status.getDocumentVerificationStatus().name());
-        response.setOfferStatus(status.getOfferStatus().name());
-        response.setSubmittedByRole(submitter.getSubmittedByRole().name());
-        response.setSubmittedById(submitter.getSubmittedByUserOrSalesId());
-        response.setSubmittedAt(submitter.getSubmittedAt());
-        response.setUpdatedAt(status.getUpdatedAt());
-
-        return response;
-    }
-}
-
-
-package com.credit.backend.service;
-
-import com.credit.backend.dao.ApplicationStatusRepository;
-import com.credit.backend.dao.ApplicationDetailsRepository;
-import com.credit.backend.dao.ApplicationSubmitterRepository;
-import com.credit.backend.dto.ApplicationDetailResponse;
-import com.credit.backend.dto.OfferGenerationRequest;
-import com.credit.backend.model.ApplicationStatus;
-import com.credit.backend.model.ApplicationDetails;
-import com.credit.backend.model.ApplicationSubmitter;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import java.util.*;
-import java.util.stream.Collectors;
-
-@Service
-public class OfferGenerationService {
-
-    @Autowired
-    private ApplicationStatusRepository statusRepository;
-
-    @Autowired
-    private ApplicationDetailsRepository detailsRepository;
-
-    @Autowired
-    private ApplicationSubmitterRepository submitterRepository;
-
-    // REPLACE the getApprovedForOffer() method with this:
-    public List<ApplicationDetailResponse> getApprovedForOffer() {
-        // Get ALL applications where document verification is APPROVED
-        // (regardless of offerStatus - could be IN_PROGRESS, APPROVED, or REJECTED)
-        List<ApplicationStatus> approvedDocStatuses = statusRepository
-                .findByDocumentVerificationStatus(ApplicationStatus.VerificationStatus.APPROVED);
-
-        return approvedDocStatuses.stream().map(status -> {
-            ApplicationDetails details = detailsRepository.findByAppId(status.getAppId()).orElse(null);
-            ApplicationSubmitter submitter = submitterRepository.findById(status.getAppId()).orElse(null);
-
-            if (details != null && submitter != null) {
-                return mapToDetailResponse(submitter, details, status);
+        async function handleSubmit(e) {
+            e.preventDefault();
+            const token = document.getElementById('authToken').value;
+            if (!token) {
+                alert('Please login first to get a token');
+                return;
             }
-            return null;
-        }).filter(Objects::nonNull).collect(Collectors.toList());
-    }
 
-    public Map<String, Object> generateCreditScore(UUID appId) {
-        ApplicationDetails details = detailsRepository.findByAppId(appId)
-                .orElseThrow(() -> new RuntimeException("Application not found"));
+            const formData = new FormData(e.target);
 
-        // Dummy credit score generation logic
-        Random random = new Random();
-        int creditScore = 300 + random.nextInt(551); // Score between 300-850
+            try {
+                const response = await fetch(`${API_BASE}/api/application/submit`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                const result = await response.json();
 
-        String creditRating;
-        if (creditScore >= 750) {
-            creditRating = "Excellent";
-        } else if (creditScore >= 700) {
-            creditRating = "Good";
-        } else if (creditScore >= 650) {
-            creditRating = "Fair";
-        } else if (creditScore >= 600) {
-            creditRating = "Poor";
-        } else {
-            creditRating = "Very Poor";
+                if (response.ok) {
+                    displayResponse('submitResponse', result);
+                } else {
+                    displayResponse('submitResponse', result, true);
+                }
+            } catch (error) {
+                displayResponse('submitResponse', { error: error.message }, true);
+            }
         }
 
-        Map<String, Object> creditInfo = new HashMap<>();
-        creditInfo.put("appId", appId);
-        creditInfo.put("fullName", details.getFullName());
-        creditInfo.put("creditScore", creditScore);
-        creditInfo.put("creditRating", creditRating);
-        creditInfo.put("generatedAt", new Date());
+        async function handleMyApplications() {
+            const token = document.getElementById('authToken').value;
+            if (!token) {
+                alert('Please login first to get a token');
+                return;
+            }
 
-        return creditInfo;
-    }
+            try {
+                const response = await fetch(`${API_BASE}/api/application/my-applications`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const result = await response.json();
 
-    @Transactional
-    public ApplicationDetailResponse processOffer(OfferGenerationRequest request) {
-        ApplicationStatus status = statusRepository.findByAppId(request.getAppId())
-                .orElseThrow(() -> new RuntimeException("Application not found"));
-
-        // Check if document verification is approved
-        if (status.getDocumentVerificationStatus() != ApplicationStatus.VerificationStatus.APPROVED) {
-            throw new RuntimeException("Document verification must be approved before generating offer");
+                if (response.ok) {
+                    displayResponse('myappsResponse', result);
+                } else {
+                    displayResponse('myappsResponse', result, true);
+                }
+            } catch (error) {
+                displayResponse('myappsResponse', { error: error.message }, true);
+            }
         }
 
-        if ("APPROVED".equalsIgnoreCase(request.getAction())) {
-            status.setOfferStatus(ApplicationStatus.OfferStatus.APPROVED);
-            status.setOfferRejectReason(null);
-        } else if ("REJECTED".equalsIgnoreCase(request.getAction())) {
-            status.setOfferStatus(ApplicationStatus.OfferStatus.REJECTED);
-            status.setOfferRejectReason(request.getRejectReason());
-        } else {
-            throw new RuntimeException("Invalid action. Use APPROVED or REJECTED");
+        async function handleGetApplication(e) {
+            e.preventDefault();
+            const token = document.getElementById('authToken').value;
+            if (!token) {
+                alert('Please login first to get a token');
+                return;
+            }
+
+            const formData = new FormData(e.target);
+            const appId = formData.get('appId');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/application/${appId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    displayResponse('getappResponse', result);
+                } else {
+                    displayResponse('getappResponse', result, true);
+                }
+            } catch (error) {
+                displayResponse('getappResponse', { error: error.message }, true);
+            }
         }
 
-        statusRepository.save(status);
+        async function loadApplicationData() {
+            const appId = document.getElementById('updateAppId').value;
+            const token = document.getElementById('authToken').value;
 
-        ApplicationDetails details = detailsRepository.findByAppId(request.getAppId())
-                .orElseThrow(() -> new RuntimeException("Application details not found"));
-        ApplicationSubmitter submitter = submitterRepository.findById(request.getAppId())
-                .orElseThrow(() -> new RuntimeException("Application submitter not found"));
+            if (!appId) {
+                alert('Please enter an Application ID');
+                return;
+            }
 
-        return mapToDetailResponse(submitter, details, status);
-    }
+            if (!token) {
+                alert('Please login first to get a token');
+                return;
+            }
 
-    private ApplicationDetailResponse mapToDetailResponse(ApplicationSubmitter submitter,
-                                                          ApplicationDetails details,
-                                                          ApplicationStatus status) {
-        ApplicationDetailResponse response = new ApplicationDetailResponse();
-        response.setAppId(submitter.getAppId());
-        response.setFullName(details.getFullName());
-        response.setEmail(details.getEmail());
-        response.setPhoneNumber(details.getPhoneNumber());
-        response.setDateOfBirth(details.getDateOfBirth());
-        response.setAddress(details.getAddress());
+            try {
+                const response = await fetch(`${API_BASE}/api/application/${appId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
 
-        // FIXED: Use filename getters instead of old getters
-        response.setAadharFilename(details.getAadharFilename());
-        response.setPanFilename(details.getPanFilename());
-        response.setIncomeProofFilename(details.getIncomeProofFilename());
+                if (response.ok) {
+                    const data = await response.json();
 
-        // NEW: Set card type
-        response.setCardType(details.getCardType() != null ? details.getCardType().name() : null);
+                    // Populate form fields
+                    document.getElementById('updateFullName').value = data.fullName || '';
+                    document.getElementById('updateEmail').value = data.email || '';
+                    document.getElementById('updatePhoneNumber').value = data.phoneNumber || '';
+                    document.getElementById('updateDateOfBirth').value = data.dateOfBirth || '';
+                    document.getElementById('updateAddress').value = data.address || '';
+                    document.getElementById('updateCardType').value = data.cardType || '';
 
-        response.setDocumentVerificationStatus(status.getDocumentVerificationStatus().name());
-        response.setOfferStatus(status.getOfferStatus().name());
-        response.setSubmittedByRole(submitter.getSubmittedByRole().name());
-        response.setSubmittedById(submitter.getSubmittedByUserOrSalesId());
-        response.setSubmittedAt(submitter.getSubmittedAt());
-        response.setUpdatedAt(status.getUpdatedAt());
+                    // Show current files with View and Download buttons
+                    const filesInfo = document.getElementById('currentFilesInfo');
+                    filesInfo.style.display = 'block';
+                    filesInfo.className = 'file-info';
+                    filesInfo.innerHTML = `
+                        <h4>📎 Current Documents</h4>
+                        <div class="file-row">
+                            <strong>Aadhar:</strong>
+                            ${data.aadharFilename
+                            ? `<span>${data.aadharFilename}</span>
+                                   <button type="button" onclick="previewDocument('${appId}', 'aadhar', '${data.aadharFilename}')" class="doc-button btn-view">👁️ View</button>
+                                   <button type="button" onclick="downloadDocument('${appId}', 'aadhar', '${data.aadharFilename}')" class="doc-button btn-download">📥 Download</button>`
+                            : '<span style="color: #9ca3af;">Not uploaded</span>'}
+                        </div>
+                        <div class="file-row">
+                            <strong>PAN:</strong>
+                            ${data.panFilename
+                            ? `<span>${data.panFilename}</span>
+                                   <button type="button" onclick="previewDocument('${appId}', 'pan', '${data.panFilename}')" class="doc-button btn-view">👁️ View</button>
+                                   <button type="button" onclick="downloadDocument('${appId}', 'pan', '${data.panFilename}')" class="doc-button btn-download">📥 Download</button>`
+                            : '<span style="color: #9ca3af;">Not uploaded</span>'}
+                        </div>
+                        <div class="file-row">
+                            <strong>Income Proof:</strong>
+                            ${data.incomeProofFilename
+                            ? `<span>${data.incomeProofFilename}</span>
+                                   <button type="button" onclick="previewDocument('${appId}', 'income-proof', '${data.incomeProofFilename}')" class="doc-button btn-view">👁️ View</button>
+                                   <button type="button" onclick="downloadDocument('${appId}', 'income-proof', '${data.incomeProofFilename}')" class="doc-button btn-download">📥 Download</button>`
+                            : '<span style="color: #9ca3af;">Not uploaded</span>'}
+                        </div>
+                    `;
 
-        return response;
-    }
-}
+                    alert('✅ Application data loaded successfully!\n\nName: ' + data.fullName + '\nEmail: ' + data.email + '\nPhone: ' + data.phoneNumber);
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + (error.error || 'Application not found'));
+                }
+            } catch (error) {
+                console.error('Load error:', error);
+                alert('Error loading application: ' + error.message);
+            }
+        }
 
+        async function handleUpdate(e) {
+            e.preventDefault();
+            const token = document.getElementById('authToken').value;
+            if (!token) {
+                alert('Please login first to get a token');
+                return;
+            }
 
+            const formData = new FormData(e.target);
+            const appId = formData.get('appId');
+            formData.delete('appId');
 
+            try {
+                const response = await fetch(`${API_BASE}/api/application/update/${appId}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                const result = await response.json();
 
+                if (response.ok) {
+                    displayResponse('updateResponse', result);
+                    // Clean up any open previews after successful update
+                    cleanupPreviewUrls();
+                } else {
+                    displayResponse('updateResponse', result, true);
+                }
+            } catch (error) {
+                displayResponse('updateResponse', { error: error.message }, true);
+            }
+        }
 
+        async function handleDownload(e) {
+            e.preventDefault();
+            const token = document.getElementById('authToken').value;
+            if (!token) {
+                alert('Please login first to get a token');
+                return;
+            }
 
-package com.credit.backend.util;
+            const formData = new FormData(e.target);
+            const appId = formData.get('appId');
+            const docType = formData.get('docType');
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-import java.security.Key;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-import java.util.function.Function;
+            try {
+                const response = await fetch(`${API_BASE}/api/application/${appId}/download/${docType}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
 
-@Component
-public class JwtUtil {
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${docType}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    displayResponse('downloadResponse', { message: 'Download started successfully!' });
+                } else {
+                    const result = await response.json();
+                    displayResponse('downloadResponse', result, true);
+                }
+            } catch (error) {
+                displayResponse('downloadResponse', { error: error.message }, true);
+            }
+        }
 
-    @Value("${jwt.secret:mySecretKeyForJWTTokenGenerationAndValidation12345}")
-    private String secret;
+        // Preview document in new tab (fetches in background, opens in browser PDF viewer)
+        async function previewDocument(appId, docType, filename) {
+            const token = document.getElementById('authToken').value;
+            if (!token) {
+                alert('Please login first to get a token');
+                return;
+            }
 
-    @Value("${jwt.expiration:86400000}") // 24 hours
-    private Long expiration;
+            try {
+                // Show loading indicator
+                const button = event.target;
+                const originalText = button.innerHTML;
+                button.innerHTML = '⏳ Loading...';
+                button.disabled = true;
 
-    private Key getSigningKey() {
-        return Keys.hmacShaKeyFor(secret.getBytes());
-    }
+                const response = await fetch(`${API_BASE}/api/application/${appId}/download/${docType}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
 
-    public String extractEmail(String token) {
-        return extractClaim(token, Claims::getSubject);
-    }
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
 
-    public Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
+                    // Store URL for cleanup
+                    openPreviewUrls.push(url);
 
-    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
-    }
+                    // Open in new tab
+                    const newWindow = window.open(url, '_blank');
 
-    private Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-    }
+                    // Clean up URL when the new window is closed
+                    if (newWindow) {
+                        const checkWindow = setInterval(() => {
+                            if (newWindow.closed) {
+                                clearInterval(checkWindow);
+                                window.URL.revokeObjectURL(url);
+                                const index = openPreviewUrls.indexOf(url);
+                                if (index > -1) {
+                                    openPreviewUrls.splice(index, 1);
+                                }
+                            }
+                        }, 1000);
+                    }
 
-    private Boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
-    }
+                    // Reset button
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                } else {
+                    const result = await response.json();
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                    alert('Error: ' + (result.error || 'Failed to load document'));
+                }
+            } catch (error) {
+                event.target.innerHTML = '👁️ View';
+                event.target.disabled = false;
+                alert('Error previewing document: ' + error.message);
+            }
+        }
 
-    public String generateToken(String email, UUID userId, String role) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", userId.toString());
-        claims.put("role", role);
-        return createToken(claims, email);
-    }
+        // Download document with proper authorization
+        async function downloadDocument(appId, docType, filename) {
+            const token = document.getElementById('authToken').value;
+            if (!token) {
+                alert('Please login first to get a token');
+                return;
+            }
 
-    private String createToken(Map<String, Object> claims, String subject) {
-        return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(subject)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
-                .compact();
-    }
+            try {
+                // Show loading indicator
+                const button = event.target;
+                const originalText = button.innerHTML;
+                button.innerHTML = '⏳ Downloading...';
+                button.disabled = true;
 
-    public Boolean validateToken(String token, String email) {
-        final String extractedEmail = extractEmail(token);
-        return (extractedEmail.equals(email) && !isTokenExpired(token));
-    }
-}
+                const response = await fetch(`${API_BASE}/api/application/${appId}/download/${docType}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
 
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename || `${docType}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
 
+                    // Clean up immediately after download
+                    setTimeout(() => {
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                    }, 100);
 
+                    // Reset button
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                } else {
+                    const result = await response.json();
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                    alert('Error: ' + (result.error || 'Failed to download document'));
+                }
+            } catch (error) {
+                event.target.innerHTML = '📥 Download';
+                event.target.disabled = false;
+                alert('Error downloading document: ' + error.message);
+            }
+        }
+    </script>
+</body>
 
-package com.credit.backend.util;
+</html>
 
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.stereotype.Component;
-
-@Component
-public class PasswordEncoderUtil {
-
-    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-
-    public String encode(String password) {
-        return encoder.encode(password);
-    }
-
-    public boolean matches(String rawPassword, String encodedPassword) {
-        return encoder.matches(rawPassword, encodedPassword);
-    }
-}
-
-
-
-
-package com.example.demo;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-
-@SpringBootApplication(scanBasePackages = {"com.credit.backend"})
-@EntityScan(basePackages = "com.credit.backend.model")
-@EnableJpaRepositories(basePackages = "com.credit.backend.dao")
-@EnableMethodSecurity // ADDED: Enable method-level security
-public class DemoApplication {
-
-    public static void main(String[] args) {
-        SpringApplication.run(DemoApplication.class, args);
-    }
-
-}
 
 
