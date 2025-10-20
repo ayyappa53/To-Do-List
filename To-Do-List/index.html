@@ -32,69 +32,41 @@
 
 
 
-
-# Credit Card API Documentation
+# Sales Role API Documentation
 
 Base URL: http://localhost:8080
 
 
-## 1. User Signup
-
-Endpoint: POST /api/auth/signup
-
-Creates a new user account and returns authentication token.
-
-Request:
-{
-  "firstName": "Ayyappa",
-  "lastName": "Kandula",
-  "email": "Kandula@example.com",
-  "password": "123456"
-}
-
-Response:
-{
-  "token": "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInVzZXJJZCI6IjYwNjc4ZmJjLWJjZmItNDAzYy1hOTQ5LTViOTE0YTdmMjJiMSIsInN1YiI6IkthbmR1bGFAZXhhbXBsZS5jb20iLCJpYXQiOjE3NjA5NDk2NTgsImV4cCI6MTc2MTAzNjA1OH0.M9QL15P_RMo_fUysQHpDdNq229mvDv9uxLgzfLDjiTE",
-  "type": "Bearer",
-  "userId": "60678fbc-bcfb-403c-a949-5b914a7f22b1",
-  "email": "Kandula@example.com",
-  "firstName": "Ayyappa",
-  "lastName": "Kandula",
-  "role": "USER"
-}
-
----
-
-## 2. User Login
+## 1. Sales Login
 
 Endpoint: POST /api/auth/login
 
-Authenticates existing user and returns authentication token.
+Authenticates sales user and returns authentication token.
 
 Request:
 {
-  "email": "Kandula@example.com",
-  "password": "123456"
+  "email": "sales@example.com",
+  "password": "sales123"
 }
 
 Response:
 {
-  "token": "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiVVNFUiIsInVzZXJJZCI6IjYwNjc4ZmJjLWJjZmItNDAzYy1hOTQ5LTViOTE0YTdmMjJiMSIsInN1YiI6IkthbmR1bGFAZXhhbXBsZS5jb20iLCJpYXQiOjE3NjA5NDk2NTgsImV4cCI6MTc2MTAzNjA1OH0.M9QL15P_RMo_fUysQHpDdNq229mvDv9uxLgzfLDjiTE",
+  "token": "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiU0FMRVMiLCJ1c2VySWQiOiI2MDY3OGZiYy1iY2ZiLTQwM2MtYTk0OS01YjkxNGE3ZjIyYjEiLCJzdWIiOiJzYWxlc0BleGFtcGxlLmNvbSIsImlhdCI6MTc2MDk0OTY1OCwiZXhwIjoxNzYxMDM2MDU4fQ.M9QL15P_RMo_fUysQHpDdNq229mvDv9uxLgzfLDjiTE",
   "type": "Bearer",
   "userId": "60678fbc-bcfb-403c-a949-5b914a7f22b1",
-  "email": "Kandula@example.com",
-  "firstName": "Ayyappa",
-  "lastName": "Kandula",
-  "role": "USER"
+  "email": "sales@example.com",
+  "firstName": "Sales",
+  "lastName": "User",
+  "role": "SALES"
 }
 
 ---
 
-## 3. Submit Application
+## 2. Submit Application for Customer
 
 Endpoint: POST /api/application/submit
 
-Submits a new credit card application with required documents.
+Sales submits a new credit card application on behalf of customer.
 
 Headers:
 Authorization: Bearer {token}
@@ -119,11 +91,11 @@ Response:
 
 ---
 
-## 4. Get My Applications
+## 3. Get My Applications
 
 Endpoint: GET /api/application/my-applications
 
-Retrieves all applications submitted by the authenticated user.
+Retrieves all applications submitted by the authenticated sales user.
 
 Headers:
 Authorization: Bearer {token}
@@ -139,6 +111,40 @@ Response:
     "address": "123 Main Street, City, State - 500001",
     "cardType": "GOLD",
     "status": "PENDING",
+    "documentVerificationStatus": "IN_PROGRESS",
+    "offerStatus": "IN_PROGRESS",
+    "aadharFilename": "aadhar_123.pdf",
+    "panFilename": "pan_123.pdf",
+    "incomeProofFilename": "income_123.pdf",
+    "submittedAt": "2024-10-20T10:30:00",
+    "updatedAt": "2024-10-20T10:30:00"
+  }
+]
+
+---
+
+## 4. Get All Applications (Onboarding)
+
+Endpoint: GET /api/onboarding/all
+
+Retrieves all applications in the system (sales access).
+
+Headers:
+Authorization: Bearer {token}
+
+Response:
+[
+  {
+    "id": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+    "fullName": "John Doe",
+    "email": "john@example.com",
+    "phoneNumber": "9876543210",
+    "dateOfBirth": "1990-01-15",
+    "address": "123 Main Street, City, State - 500001",
+    "cardType": "GOLD",
+    "status": "PENDING",
+    "documentVerificationStatus": "IN_PROGRESS",
+    "offerStatus": "IN_PROGRESS",
     "aadharFilename": "aadhar_123.pdf",
     "panFilename": "pan_123.pdf",
     "incomeProofFilename": "income_123.pdf",
@@ -168,6 +174,8 @@ Response:
   "address": "123 Main Street, City, State - 500001",
   "cardType": "GOLD",
   "status": "PENDING",
+  "documentVerificationStatus": "IN_PROGRESS",
+  "offerStatus": "IN_PROGRESS",
   "aadharFilename": "aadhar_123.pdf",
   "panFilename": "pan_123.pdf",
   "incomeProofFilename": "income_123.pdf",
@@ -206,7 +214,153 @@ Response:
 
 ---
 
-## 7. Download Document
+## 7. Get Pending Document Verifications
+
+Endpoint: GET /api/document-verification/pending
+
+Retrieves all applications pending document verification.
+
+Headers:
+Authorization: Bearer {token}
+
+Response:
+[
+  {
+    "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+    "fullName": "John Doe",
+    "email": "john@example.com",
+    "phoneNumber": "9876543210",
+    "dateOfBirth": "1990-01-15",
+    "address": "123 Main Street, City, State - 500001",
+    "cardType": "GOLD",
+    "documentVerificationStatus": "IN_PROGRESS",
+    "aadharFilename": "aadhar_123.pdf",
+    "panFilename": "pan_123.pdf",
+    "incomeProofFilename": "income_123.pdf",
+    "submittedAt": "2024-10-20T10:30:00"
+  }
+]
+
+---
+
+## 8. Verify Documents
+
+Endpoint: POST /api/document-verification/verify
+
+Approves or rejects application documents.
+
+Headers:
+Authorization: Bearer {token}
+Content-Type: application/json
+
+Request (Approve):
+{
+  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+  "action": "APPROVED"
+}
+
+Request (Reject):
+{
+  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+  "action": "REJECTED",
+  "rejectReason": "Aadhar document is not clear"
+}
+
+Response:
+{
+  "message": "Documents verified successfully",
+  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+  "status": "APPROVED"
+}
+
+---
+
+## 9. Get Approved Applications (Ready for Offers)
+
+Endpoint: GET /api/offer/approved
+
+Retrieves all applications with approved documents ready for offer processing.
+
+Headers:
+Authorization: Bearer {token}
+
+Response:
+[
+  {
+    "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+    "fullName": "John Doe",
+    "email": "john@example.com",
+    "phoneNumber": "9876543210",
+    "dateOfBirth": "1990-01-15",
+    "address": "123 Main Street, City, State - 500001",
+    "cardType": "GOLD",
+    "documentVerificationStatus": "APPROVED",
+    "offerStatus": "IN_PROGRESS",
+    "aadharFilename": "aadhar_123.pdf",
+    "panFilename": "pan_123.pdf",
+    "incomeProofFilename": "income_123.pdf",
+    "updatedAt": "2024-10-20T11:00:00"
+  }
+]
+
+---
+
+## 10. Generate Credit Score
+
+Endpoint: GET /api/offer/credit-score/{applicationId}
+
+Generates credit score for an application.
+
+Headers:
+Authorization: Bearer {token}
+
+Response:
+{
+  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+  "fullName": "John Doe",
+  "creditScore": 785,
+  "creditRating": "EXCELLENT",
+  "generatedAt": "2024-10-20T11:15:00"
+}
+
+---
+
+## 11. Process Credit Card Offer
+
+Endpoint: POST /api/offer/process
+
+Approves or rejects credit card offer based on credit score.
+
+Headers:
+Authorization: Bearer {token}
+Content-Type: application/json
+
+Request (Approve):
+{
+  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+  "action": "APPROVED",
+  "creditScore": 785
+}
+
+Request (Reject):
+{
+  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+  "action": "REJECTED",
+  "creditScore": 580,
+  "rejectReason": "Credit score below threshold"
+}
+
+Response:
+{
+  "message": "Offer processed successfully",
+  "appId": "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+  "status": "APPROVED",
+  "creditScore": 785
+}
+
+---
+
+## 12. Download Document
 
 Endpoint: GET /api/application/{applicationId}/download/{documentType}
 
@@ -223,5 +377,27 @@ income-proof
 Response:
 PDF file download
 
+---
 
+## Status Values
 
+Document Verification Status:
+IN_PROGRESS
+APPROVED
+REJECTED
+
+Offer Status:
+IN_PROGRESS
+APPROVED
+REJECTED
+
+Card Types:
+GOLD
+PLATINUM
+SILVER
+
+Credit Ratings:
+EXCELLENT (750-850)
+GOOD (700-749)
+FAIR (650-699)
+POOR (300-649)
