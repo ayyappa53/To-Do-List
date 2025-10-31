@@ -95,30 +95,31 @@ export const UserApplication = () => {
           (app.documentVerificationStatus === 'APPROVED' && app.offerStatus === 'IN_PROGRESS')
         );
         
-        // Find rejected application (latest rejected)
-        const rejectedApp = sorted.find(app => 
+        // Find latest rejected application
+        const latestRejectedApp = sorted.find(app => 
           app.documentVerificationStatus === 'REJECTED' || app.offerStatus === 'REJECTED'
         );
         
-        // Filter approved applications for history (both doc and offer approved)
-        const approvedApps = sorted.filter(app => 
-          app.documentVerificationStatus === 'APPROVED' && 
-          app.offerStatus === 'APPROVED'
+        // CHANGED: Include both approved AND rejected applications in history
+        const completedApps = sorted.filter(app => 
+          (app.documentVerificationStatus === 'APPROVED' && app.offerStatus === 'APPROVED') ||
+          app.documentVerificationStatus === 'REJECTED' || 
+          app.offerStatus === 'REJECTED'
         );
 
         if (inProcessApp) {
           setCurrentApplication(inProcessApp);
           setHasActiveApplication(true);
-        } else if (rejectedApp && approvedApps.length === 0) {
-          // Only show rejected if no approved apps exist
-          setCurrentApplication(rejectedApp);
+        } else if (latestRejectedApp && completedApps.length === 1) {
+          // Only show rejected block if it's the only application
+          setCurrentApplication(latestRejectedApp);
           setHasActiveApplication(false);
         } else {
           setCurrentApplication(null);
           setHasActiveApplication(false);
         }
 
-        setApplicationHistory(approvedApps);
+        setApplicationHistory(completedApps);
       }
     } catch (error) {
       console.error('Error loading applications:', error);
@@ -323,7 +324,7 @@ export const UserApplication = () => {
       </div>
 
       {/* Application History Toggle */}
-      {applicationHistory.length > 0 && !hasActiveApplication && !isRejected && (
+      {applicationHistory.length > 0 && !hasActiveApplication && (
         <div className="history-toggle-section">
           <button className="history-toggle-btn" onClick={toggleHistory}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -340,43 +341,76 @@ export const UserApplication = () => {
         <div className="history-container">
           <h2 className="history-title">Previous Applications</h2>
           <div className="history-list">
-            {applicationHistory.map((app) => (
-              <div key={app.appId} className="history-card">
-                <div className="history-header">
-                  <div className="history-info">
-                    <h3 className="history-name">{app.fullName}</h3>
-                    <p className="history-date">
-                      Application ID: {app.appId.substring(0, 8)}...
-                    </p>
-                    <p className="history-date">
-                      {new Date(app.submittedAt).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </p>
+            {applicationHistory.map((app) => {
+              const isAppRejected = app.documentVerificationStatus === 'REJECTED' || app.offerStatus === 'REJECTED';
+              const finalStatus = app.offerStatus === 'REJECTED' ? 'REJECTED' : 
+                                 app.documentVerificationStatus === 'REJECTED' ? 'REJECTED' : 
+                                 app.offerStatus;
+              
+              return (
+                <div key={app.appId} className="history-card">
+                  <div className="history-header">
+                    <div className="history-info">
+                      <h3 className="history-name">{app.fullName}</h3>
+                      <p className="history-date">
+                        Application ID: {app.appId.substring(0, 8)}...
+                      </p>
+                      <p className="history-date">
+                        {new Date(app.submittedAt).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                    <span className={`status-badge ${getStatusBadgeClass(finalStatus)}`}>
+                      {getStatusText(finalStatus)}
+                    </span>
                   </div>
-                  <span className={`status-badge ${getStatusBadgeClass(app.offerStatus)}`}>
-                    {getStatusText(app.offerStatus)}
-                  </span>
+                  
+                  <div className="history-details">
+                    <div className="history-detail-item">
+                      <span className="history-label">Card Type:</span>
+                      <span className="history-value">{app.cardType}</span>
+                    </div>
+                    <div className="history-detail-item">
+                      <span className="history-label">Email:</span>
+                      <span className="history-value">{app.email}</span>
+                    </div>
+                    <div className="history-detail-item">
+                      <span className="history-label">Contact:</span>
+                      <span className="history-value">{app.phoneNumber}</span>
+                    </div>
+                    <div className="history-detail-item">
+                      <span className="history-label">Document Status:</span>
+                      <span className={`status-badge ${getStatusBadgeClass(app.documentVerificationStatus)}`}>
+                        {getStatusText(app.documentVerificationStatus)}
+                      </span>
+                    </div>
+                    <div className="history-detail-item">
+                      <span className="history-label">Offer Status:</span>
+                      <span className={`status-badge ${getStatusBadgeClass(app.offerStatus)}`}>
+                        {getStatusText(app.offerStatus)}
+                      </span>
+                    </div>
+                    
+                    {/* Show rejection reasons */}
+                    {app.documentRejectReason && (
+                      <div className="history-detail-item rejection-reason">
+                        <span className="history-label">Document Rejection Reason:</span>
+                        <span className="history-value rejection-text">{app.documentRejectReason}</span>
+                      </div>
+                    )}
+                    {app.offerRejectReason && (
+                      <div className="history-detail-item rejection-reason">
+                        <span className="history-label">Offer Rejection Reason:</span>
+                        <span className="history-value rejection-text">{app.offerRejectReason}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                
-                <div className="history-details">
-                  <div className="history-detail-item">
-                    <span className="history-label">Card Type:</span>
-                    <span className="history-value">{app.cardType}</span>
-                  </div>
-                  <div className="history-detail-item">
-                    <span className="history-label">Email:</span>
-                    <span className="history-value">{app.email}</span>
-                  </div>
-                  <div className="history-detail-item">
-                    <span className="history-label">Contact:</span>
-                    <span className="history-value">{app.phoneNumber}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -415,6 +449,23 @@ export const UserApplication = () => {
           <p className="block-message">
             Your previous application was rejected. You can now apply for a new credit card.
           </p>
+          
+          {/* Show rejection reasons in the block */}
+          <div className="rejection-details-block">
+            {currentApplication.documentRejectReason && (
+              <div className="rejection-item-block">
+                <span className="rejection-label-block">Document Rejection Reason:</span>
+                <span className="rejection-text-block">{currentApplication.documentRejectReason}</span>
+              </div>
+            )}
+            {currentApplication.offerRejectReason && (
+              <div className="rejection-item-block">
+                <span className="rejection-label-block">Offer Rejection Reason:</span>
+                <span className="rejection-text-block">{currentApplication.offerRejectReason}</span>
+              </div>
+            )}
+          </div>
+          
           <div className="block-actions">
             <button 
               className="edit-application-btn" 
@@ -624,325 +675,52 @@ export default UserApplication;
 
 
 
+.rejection-reason {
+  flex-direction: column;
+  align-items: flex-start !important;
+  background-color: #fee2e2;
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 3px solid #dc2626;
+  margin-top: 8px;
+}
 
+.rejection-text {
+  color: #dc2626;
+  font-weight: 500;
+  margin-top: 4px;
+  word-break: break-word;
+}
 
+.rejection-details-block {
+  width: 100%;
+  margin: 20px 0;
+  padding: 16px;
+  background-color: #fee2e2;
+  border-radius: 8px;
+  border-left: 4px solid #dc2626;
+}
 
+.rejection-item-block {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+}
 
+.rejection-item-block:last-child {
+  margin-bottom: 0;
+}
 
+.rejection-label-block {
+  font-weight: 600;
+  color: #991b1b;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
 
-
-
-
-
-
-
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import "./UserStatus.css";
-import { toast } from "react-toastify";
-import axios from "axios";
-
-const API_BASE = "http://localhost:8080";
-
-const UserStatus = () => {
-  const navigate = useNavigate();
-  const [applicationData, setApplicationData] = useState(null);
-  const [currentStage, setCurrentStage] = useState(1);
-  const [rejectionInfo, setRejectionInfo] = useState(null);
-
-  const token = localStorage.getItem("token");
-
-  useEffect(() => {
-    if (!token) {
-      toast.error("Please login to view your applications");
-      return;
-    }
-
-    const fetchApplication = async () => {
-      try {
-        const res = await axios.get(
-          `${API_BASE}/api/application/my-applications`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        const apps = Array.isArray(res.data) ? res.data : [res.data];
-
-        if (!apps || apps.length === 0) {
-          setApplicationData(null);
-          return;
-        }
-
-        // Sort by submission date (most recent first)
-        const sorted = apps.sort((a, b) => 
-          new Date(b.submittedAt) - new Date(a.submittedAt)
-        );
-
-        // Get the most recent application (regardless of status)
-        const latestApp = sorted[0];
-        setApplicationData(latestApp);
-        
-      } catch (error) {
-        console.error("Error fetching application:", error);
-        toast.error("Unable to fetch application");
-      }
-    };
-
-    fetchApplication();
-  }, [token]);
-
-  useEffect(() => {
-    if (!applicationData) return;
-
-    const docStatus = applicationData.documentVerificationStatus;
-    const offerStatus = applicationData.offerStatus;
-
-    // Document verification rejected
-    if (docStatus === "REJECTED") {
-      setCurrentStage(2);
-      setRejectionInfo({
-        stage: 2,
-        reason: applicationData.documentRejectReason || "Document verification failed"
-      });
-    } 
-    // Document verification in progress
-    else if (docStatus === "IN_PROGRESS") {
-      setCurrentStage(2);
-      setRejectionInfo(null);
-    } 
-    // Document approved, offer rejected
-    else if (docStatus === "APPROVED" && offerStatus === "REJECTED") {
-      setCurrentStage(3);
-      setRejectionInfo({
-        stage: 3,
-        reason: applicationData.offerRejectReason || "Offer generation failed"
-      });
-    }
-    // Document approved, offer in progress
-    else if (docStatus === "APPROVED" && offerStatus === "IN_PROGRESS") {
-      setCurrentStage(3);
-      setRejectionInfo(null);
-    }
-    // Both approved
-    else if (docStatus === "APPROVED" && offerStatus === "APPROVED") {
-      setCurrentStage(4); // All completed
-      setRejectionInfo(null);
-    }
-    // Just submitted
-    else {
-      setCurrentStage(1);
-      setRejectionInfo(null);
-    }
-  }, [applicationData]);
-
-  const stages = [
-    {
-      id: 1,
-      title: "Application Submitted",
-      description: "Your application has been received successfully",
-    },
-    {
-      id: 2,
-      title: "Document Verification",
-      description: "Your documents are being verified by the bank",
-    },
-    {
-      id: 3,
-      title: "Offer Confirmation",
-      description: "Your credit card has been approved",
-    },
-  ];
-
-  const handleNewApplication = () => {
-    navigate("/apply");
-  };
-
-  if (!applicationData) {
-    return (
-      <div className="status-container">
-        <div className="empty-state">
-          <h2>No Application Found</h2>
-          <button className="apply-now-btn" onClick={() => navigate("/apply")}>
-            Apply Now
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const isFullyApproved = applicationData.documentVerificationStatus === "APPROVED" && 
-                          applicationData.offerStatus === "APPROVED";
-
-  return (
-    <div className="status-container">
-      <div className="status-header">
-        <h1
-          className="status-title"
-          style={{
-            backgroundImage: "linear-gradient(to bottom, #007b8f, #00434e)",
-            WebkitBackgroundClip: "text",
-            color: "transparent",
-          }}
-        >
-          Application Status
-        </h1>
-        <p className="status-subtitle">Track your credit card application</p>
-      </div>
-
-      <div className="status-card">
-        <div className="progress-timeline">
-          {stages.map((stage, index) => {
-            const isCompleted = currentStage > stage.id;
-            const isCurrent = currentStage === stage.id;
-            const isRejected = rejectionInfo && rejectionInfo.stage === stage.id;
-
-            return (
-              <React.Fragment key={stage.id}>
-                <div className="progress-step">
-                  <div
-                    className={`progress-circle ${
-                      isRejected
-                        ? "rejected"
-                        : isCompleted
-                        ? "completed"
-                        : isCurrent
-                        ? "current"
-                        : "pending"
-                    }`}
-                  >
-                    {isRejected ? "✕" : isCompleted ? "✓" : stage.id}
-                  </div>
-
-                  <div className="progress-label">
-                    <h4
-                      className={`progress-title ${
-                        isRejected
-                          ? "rejected-text"
-                          : isCompleted || isCurrent
-                          ? "active"
-                          : ""
-                      }`}
-                    >
-                      {stage.title}
-                    </h4>
-                    <p
-                      className={`progress-desc ${
-                        isRejected
-                          ? "rejected-text"
-                          : isCompleted || isCurrent
-                          ? "active"
-                          : ""
-                      }`}
-                    >
-                      {isRejected
-                        ? "Verification Failed"
-                        : stage.description}
-                    </p>
-                  </div>
-                </div>
-
-                {index < stages.length - 1 && (
-                  <div
-                    className={`progress-line ${
-                      isRejected
-                        ? "rejected"
-                        : currentStage > stage.id
-                        ? "completed"
-                        : "pending"
-                    }`}
-                  ></div>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-
-        {rejectionInfo && (
-          <div className="rejection-alert">
-            <div className="rejection-icon">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="15" y1="9" x2="9" y2="15"/>
-                <line x1="9" y1="9" x2="15" y2="15"/>
-              </svg>
-            </div>
-            <div className="rejection-content">
-              <h3 className="rejection-title">Application Rejected</h3>
-              <p className="rejection-stage">
-                Stage: {rejectionInfo.stage === 2 ? "Document Verification" : "Offer Generation"}
-              </p>
-              <div className="rejection-reason">
-                <strong>Reason:</strong> {rejectionInfo.reason}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="applicant-info">
-          <h3 className="info-section-title" style={{
-            backgroundImage: "linear-gradient(to bottom, #007b8f, #00434e)",
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            color: "transparent",
-            WebkitTextFillColor: "transparent"
-          }}>
-            Application Details
-          </h3>
-          <div className="info-grid">
-            <div className="info-item">
-              <span className="info-label">Applicant Name</span>
-              <span className="info-value">{applicationData.fullName}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Application ID</span>
-              <span className="info-value">{applicationData.appId.substring(0, 8)}...</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Email Address</span>
-              <span className="info-value">{applicationData.email}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Contact Number</span>
-              <span className="info-value">{applicationData.phoneNumber}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Card Type</span>
-              <span className="info-badge">{applicationData.cardType}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Submitted On</span>
-              <span className="info-value">
-                {new Date(applicationData.submittedAt).toLocaleDateString('en-IN', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric'
-                })}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {isFullyApproved && (
-          <div className="success-banner">
-            <div className="success-icon-wrapper">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3">
-                <path d="M9 12l2 2 4-4"/>
-                <circle cx="12" cy="12" r="10"/>
-              </svg>
-            </div>
-            <div className="success-content">
-              <h3 className="success-title">Congratulations!</h3>
-              <p className="success-text">Your credit card application has been approved.</p>
-              <button className="new-application-button" onClick={handleNewApplication}>
-                Apply for another card
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default UserStatus;
+.rejection-text-block {
+  color: #dc2626;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+}
