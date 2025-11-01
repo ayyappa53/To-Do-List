@@ -29,14 +29,11 @@
 
 
 
-
-
-
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { ArrowLeft, Eye, Upload, User, Mail, Phone, Calendar, MapPin, CreditCard, FileText, Save } from 'lucide-react';
+import { ArrowLeft, Download, Upload, User, Mail, Phone, Calendar, MapPin, CreditCard, FileText, Save } from 'lucide-react';
 import "./EditApplication.css";
 
 const API_BASE = "http://localhost:8080";
@@ -59,9 +56,6 @@ function EditApplication() {
 
     const [serverFiles, setServerFiles] = useState({});
     const [errors, setErrors] = useState({});
-    const [showPdfModal, setShowPdfModal] = useState(false);
-    const [currentPdfUrl, setCurrentPdfUrl] = useState("");
-    const [currentPdfType, setCurrentPdfType] = useState("");
     const token = localStorage.getItem("token");
 
     useEffect(() => {
@@ -161,11 +155,19 @@ function EditApplication() {
         }
     };
 
-    const viewDocument = (type, filename) => {
+    const downloadDocument = (type, filename) => {
         const url = `${API_BASE}/api/application/${id}/download/${type}/${filename}`;
-        setCurrentPdfUrl(url);
-        setCurrentPdfType(type);
-        setShowPdfModal(true);
+        
+        // Create a temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast.success("📥 Document download started");
     };
 
     return (
@@ -314,11 +316,11 @@ function EditApplication() {
                             {serverFiles.aadhar && (
                                 <button
                                     type="button"
-                                    className="edit-view-btn"
-                                    onClick={() => viewDocument("aadhar", serverFiles.aadhar)}
+                                    className="edit-download-btn"
+                                    onClick={() => downloadDocument("aadhar", serverFiles.aadhar)}
                                 >
-                                    <Eye size={18} />
-                                    View Existing
+                                    <Download size={18} />
+                                    Download
                                 </button>
                             )}
                         </div>
@@ -341,11 +343,11 @@ function EditApplication() {
                             {serverFiles.pan && (
                                 <button
                                     type="button"
-                                    className="edit-view-btn"
-                                    onClick={() => viewDocument("pan", serverFiles.pan)}
+                                    className="edit-download-btn"
+                                    onClick={() => downloadDocument("pan", serverFiles.pan)}
                                 >
-                                    <Eye size={18} />
-                                    View Existing
+                                    <Download size={18} />
+                                    Download
                                 </button>
                             )}
                         </div>
@@ -368,11 +370,11 @@ function EditApplication() {
                             {serverFiles.income && (
                                 <button
                                     type="button"
-                                    className="edit-view-btn"
-                                    onClick={() => viewDocument("income-proof", serverFiles.income)}
+                                    className="edit-download-btn"
+                                    onClick={() => downloadDocument("income-proof", serverFiles.income)}
                                 >
-                                    <Eye size={18} />
-                                    View Existing
+                                    <Download size={18} />
+                                    Download
                                 </button>
                             )}
                         </div>
@@ -387,34 +389,11 @@ function EditApplication() {
                     </button>
                 </div>
             </form>
-
-            {/* PDF Viewer Modal */}
-            {showPdfModal && (
-                <div className="edit-pdf-modal-overlay" onClick={() => setShowPdfModal(false)}>
-                    <div className="edit-pdf-modal-content" onClick={(e) => e.stopPropagation()}>
-                        <div className="edit-pdf-modal-header">
-                            <h3>Document Preview - {currentPdfType.toUpperCase()}</h3>
-                            <button className="edit-pdf-close-btn" onClick={() => setShowPdfModal(false)}>
-                                ×
-                            </button>
-                        </div>
-                        <div className="edit-pdf-viewer">
-                            <iframe
-                                src={currentPdfUrl}
-                                title="PDF Viewer"
-                                width="100%"
-                                height="100%"
-                            />
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
 
 export default EditApplication;
-
 
 
 
@@ -668,7 +647,7 @@ export default EditApplication;
     display: none;
 }
 
-.edit-view-btn {
+.edit-download-btn {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -684,7 +663,7 @@ export default EditApplication;
     white-space: nowrap;
 }
 
-.edit-view-btn:hover {
+.edit-download-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(72, 187, 120, 0.4);
 }
@@ -717,98 +696,6 @@ export default EditApplication;
     box-shadow: 0 8px 20px rgba(0, 123, 143, 0.4);
 }
 
-/* PDF Modal */
-.edit-pdf-modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    padding: 1rem;
-    animation: editModalFadeIn 0.3s ease;
-}
-
-@keyframes editModalFadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-
-.edit-pdf-modal-content {
-    background: white;
-    border-radius: 16px;
-    width: 90%;
-    max-width: 1000px;
-    height: 90vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    animation: editModalSlideUp 0.3s ease;
-}
-
-@keyframes editModalSlideUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-.edit-pdf-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem;
-    background: linear-gradient(135deg, #113f67 0%, #38598b 100%);
-    color: white;
-}
-
-.edit-pdf-modal-header h3 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 700;
-}
-
-.edit-pdf-close-btn {
-    background: rgba(255, 255, 255, 0.2);
-    border: none;
-    color: white;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    font-size: 1.5rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.edit-pdf-close-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
-    transform: rotate(90deg);
-}
-
-.edit-pdf-viewer {
-    flex: 1;
-    overflow: hidden;
-}
-
-.edit-pdf-viewer iframe {
-    border: none;
-}
-
 /* Responsive */
 @media (max-width: 768px) {
     .edit-app-container {
@@ -836,7 +723,7 @@ export default EditApplication;
     }
 
     .edit-file-input-label,
-    .edit-view-btn {
+    .edit-download-btn {
         width: 100%;
         justify-content: center;
     }
@@ -844,10 +731,5 @@ export default EditApplication;
     .edit-submit-btn {
         width: 100%;
         justify-content: center;
-    }
-
-    .edit-pdf-modal-content {
-        width: 95%;
-        height: 85vh;
     }
 }
