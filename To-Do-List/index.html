@@ -148,6 +148,19 @@ export default function OfferConfirmation() {
     }
   };
 
+  const handleModalClose = () => {
+    // Re-enable buttons when modal is closed without confirming
+    if (who?.appId) {
+      setDisabledIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(who.appId);
+        return newSet;
+      });
+    }
+    setWho(null);
+    bsModal.current?.hide();
+  };
+
   const processOffer = async (row, action) => {
     try {
       const payload = {
@@ -324,17 +337,17 @@ export default function OfferConfirmation() {
                         <td>{r.cardType || "-"}</td>
                         <td>
                           {r.offerStatus === "APPROVED" ? (
-                            <span className="offer-status-badge offer-status-approved">
+                            <span className="offer-status-badge offer-status-approved" style={{ display: 'inline-flex', minWidth: '120px', justifyContent: 'center' }}>
                               <CheckCircle size={16} />
                               Approved
                             </span>
                           ) : r.offerStatus === "REJECTED" ? (
-                            <span className="offer-status-badge offer-status-rejected">
+                            <span className="offer-status-badge offer-status-rejected" style={{ display: 'inline-flex', minWidth: '120px', justifyContent: 'center' }}>
                               <XCircle size={16} />
                               Rejected
                             </span>
                           ) : (
-                            <div className="d-flex gap-2 flex-wrap">
+                            <div className="offer-action-buttons-wrapper">
                               <button
                                 className="offer-approve-btn"
                                 onClick={() => handleActionClick(r)}
@@ -406,7 +419,7 @@ export default function OfferConfirmation() {
           <div className="modal-content text-center">
             <div className="modal-header">
               <h5 className="modal-title">Credit Score Generated ✅</h5>
-              <button className="btn-close" onClick={() => bsModal.current?.hide()}></button>
+              <button className="btn-close" onClick={handleModalClose}></button>
             </div>
             <div className="modal-body">
               <h5>{who?.fullName}</h5>
@@ -414,6 +427,9 @@ export default function OfferConfirmation() {
               <p className="text-muted">{who?.creditRating}</p>
             </div>
             <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={handleModalClose}>
+                Cancel
+              </button>
               <button className="btn btn-primary" onClick={() => processOffer(who, "APPROVED")}>
                 Confirm Approve ✅
               </button>
@@ -453,7 +469,6 @@ export default function OfferConfirmation() {
     </div>
   );
 }
-
 
 
 
@@ -889,22 +904,33 @@ export default function OfferConfirmation() {
     border: 2px solid #fbbf24;
 }
 
+/* Action Buttons Wrapper */
+.offer-action-buttons-wrapper {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+    min-width: 220px;
+}
+
 /* Action Buttons */
 .offer-approve-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.25rem;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.625rem 1rem;
     background: linear-gradient(135deg, #113f67 0%, #38598b 100%);
     color: white;
     border: none;
     border-radius: 10px;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
+    flex: 1;
+    white-space: nowrap;
 }
 
 .offer-approve-btn::before {
@@ -926,7 +952,7 @@ export default function OfferConfirmation() {
 }
 
 .offer-approve-btn:disabled {
-    background: #cbd5e0;
+    background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -934,18 +960,21 @@ export default function OfferConfirmation() {
 .offer-reject-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.25rem;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.625rem 1rem;
     background: linear-gradient(135deg, #ef5a5a 0%, #c62828 100%);
     color: white;
     border: none;
     border-radius: 10px;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
+    flex: 1;
+    white-space: nowrap;
 }
 
 .offer-reject-btn::before {
@@ -967,7 +996,7 @@ export default function OfferConfirmation() {
 }
 
 .offer-reject-btn:disabled {
-    background: #cbd5e0;
+    background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -1062,3 +1091,4 @@ export default function OfferConfirmation() {
         padding: 0.75rem 0.5rem;
     }
 }
+
