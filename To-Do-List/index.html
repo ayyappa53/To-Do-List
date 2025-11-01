@@ -28,313 +28,447 @@
 </html>
 
 
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from "react-router-dom";
+
+
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
-import { FileText, User, Filter, X, Search, Edit, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import "bootstrap/dist/css/bootstrap.min.css";
-import "./Onboarding.css";
+import { Modal } from "bootstrap";
+import { FileText, CheckCircle, XCircle, Filter, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import "./OfferConfirmation.css";
 
 const API_BASE = "http://localhost:8080";
 
-const Onboarding = () => {
-    const [selectedRow, setSelectedRow] = useState(null);
-    const [data, setData] = useState([]);
-    const [showFilters, setShowFilters] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(10);
-    const [filters, setFilters] = useState({
-        search: '',
-        status: 'all',
-        cardType: 'all'
+export default function OfferConfirmation() {
+  const [data, setData] = useState([]);
+  const [who, setWho] = useState(null);
+  const [disabledIds, setDisabledIds] = useState(new Set());
+  const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actionWho, setActionWho] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [filters, setFilters] = useState({
+    query: '',
+    status: 'All',
+    sortDir: 'oldest'
+  });
+
+  const modalRef = useRef(null);
+  const bsModal = useRef(null);
+  const token = localStorage.getItem("token");
+
+  useEffect(() => {
+    if (modalRef.current && !bsModal.current) {
+      bsModal.current = new Modal(modalRef.current, {
+        backdrop: "static",
+        keyboard: true,
+      });
+    }
+  }, []);
+
+  const fetchApprovedData = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get(`${API_BASE}/api/offer/approved`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setData(res.data || []);
+    } catch (err) {
+      console.error("Fetch Error:", err);
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchApprovedData();
+  }, []);
+
+  const toTime = (d) => new Date(d).getTime();
+
+  const filteredAndSorted = useMemo(() => {
+    const q = filters.query.trim().toLowerCase();
+    let rows = data.filter((r) => {
+      const s = r.fullName?.toLowerCase() || "";
+      const searchMatch = q === "" || s.includes(q);
+      const statusMatch = filters.status === "All" || r.documentVerificationStatus === filters.status;
+      return searchMatch && statusMatch;
     });
-    const navigate = useNavigate();
 
-    const shortId = (id) => id ? id.slice(0, 8) + "..." : "";
-
-    const handleEdit = () => {
-        if (!selectedRow) return;
-        navigate(`/edit/${selectedRow.appId}`, { state: { row: selectedRow } });
-    };
-
-    const fetchAllApplications = async () => {
-        try {
-            const token = localStorage.getItem("token"); 
-            const response = await axios.get(`${API_BASE}/api/onboarding/all`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setData(response.data || []);
-        } catch (error) {
-            console.error("Error fetching applications:", error.response?.data || error.message);
-        }
-    };
-
-    useEffect(() => {
-        fetchAllApplications();
-    }, []);
-
-    const filteredData = data.filter((item) => {
-        const query = filters.search.toLowerCase();
-        const matchesSearch = filters.search === '' ||
-            item.fullName.toLowerCase().includes(query) ||
-            item.appId.toLowerCase().includes(query) ||
-            item.email.toLowerCase().includes(query) ||
-            item.phoneNumber.includes(filters.search) ||
-            item.cardType.toLowerCase().includes(query);
-        const matchesStatus = filters.status === 'all' || item.status === filters.status;
-        const matchesCardType = filters.cardType === 'all' || item.cardType === filters.cardType;
-        return matchesSearch && matchesStatus && matchesCardType;
-    });
-
-    // Pagination
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
-    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-
-    const paginate = (pageNumber) => setCurrentPage(pageNumber);
-
-    const stats = {
-        total: data.length,
-        approved: data.filter(a => a.status === 'APPROVED').length,
-        pending: data.filter(a => a.status === 'PENDING').length,
-        rejected: data.filter(a => a.status === 'REJECTED').length
-    };
-
-    const activeFiltersCount = Object.values(filters).filter(v => v !== '' && v !== 'all').length;
-
-    const resetFilters = () => {
-        setFilters({ search: '', status: 'all', cardType: 'all' });
-        setCurrentPage(1);
-    };
-
-    const getStatusBadge = (status) => {
-        const badges = {
-            PENDING: { class: 'onboarding-status-pending', text: 'Pending' },
-            APPROVED: { class: 'onboarding-status-approved', text: 'Approved' },
-            REJECTED: { class: 'onboarding-status-rejected', text: 'Rejected' }
-        };
-        const badge = badges[status] || badges.PENDING;
-        return <span className={`onboarding-status-badge ${badge.class}`}>{badge.text}</span>;
-    };
-
-    return (
-        <div className='onboarding-page-container'>
-            <header className="onboarding-header-section">
-                <div className="onboarding-header-content">
-                    <div className="onboarding-header-left">
-                        <h1 className="onboarding-page-title">Application Management</h1>
-                        <p className="onboarding-page-subtitle">Welcome back, <span style={{ color: '#007b8f' }}>User!</span></p>
-                    </div>
-                    <div className="onboarding-stats-container">
-                        <div className="onboarding-stat-card">
-                            <div className="onboarding-stat-icon onboarding-stat-icon-total">
-                                <FileText size={24} />
-                            </div>
-                            <div className="onboarding-stat-info">
-                                <p className="onboarding-stat-label">Total Applications</p>
-                                <p className="onboarding-stat-value">{stats.total}</p>
-                            </div>
-                        </div>
-                        <div className="onboarding-stat-card">
-                            <div className="onboarding-stat-icon onboarding-stat-icon-pending">
-                                <User size={24} />
-                            </div>
-                            <div className="onboarding-stat-info">
-                                <p className="onboarding-stat-label">Pending</p>
-                                <p className="onboarding-stat-value">{stats.pending}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <div className="onboarding-content-section">
-                <div className="onboarding-filters-section">
-                    <div className="onboarding-filters-header">
-                        <button
-                            className={`onboarding-filter-toggle-btn ${showFilters ? 'active' : ''}`}
-                            onClick={() => setShowFilters(!showFilters)}
-                        >
-                            <Filter size={20} />
-                            Filters
-                            {activeFiltersCount > 0 && (
-                                <span className="onboarding-filter-count">{activeFiltersCount}</span>
-                            )}
-                        </button>
-                        {activeFiltersCount > 0 && (
-                            <button className="onboarding-reset-filters-btn" onClick={resetFilters}>
-                                <X size={16} />
-                                Reset Filters
-                            </button>
-                        )}
-                    </div>
-                    <div className={`onboarding-filters-content ${showFilters ? 'show' : ''}`}>
-                        <div className="onboarding-filter-grid">
-                            <div className="onboarding-filter-group">
-                                <label className="onboarding-filter-label">Search</label>
-                                <div className="onboarding-search-input-wrapper">
-                                    <Search size={18} />
-                                    <input
-                                        type="text"
-                                        className="onboarding-filter-input"
-                                        placeholder="Search by name, ID, email, phone..."
-                                        value={filters.search}
-                                        onChange={(e) => {
-                                            setFilters({...filters, search: e.target.value});
-                                            setCurrentPage(1);
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                            <div className="onboarding-filter-group">
-                                <label className="onboarding-filter-label">Status</label>
-                                <select
-                                    className="onboarding-filter-select"
-                                    value={filters.status}
-                                    onChange={(e) => {
-                                        setFilters({...filters, status: e.target.value});
-                                        setCurrentPage(1);
-                                    }}
-                                >
-                                    <option value="all">All Status</option>
-                                    <option value="PENDING">Pending</option>
-                                    <option value="APPROVED">Approved</option>
-                                    <option value="REJECTED">Rejected</option>
-                                </select>
-                            </div>
-                            <div className="onboarding-filter-group">
-                                <label className="onboarding-filter-label">Card Type</label>
-                                <select
-                                    className="onboarding-filter-select"
-                                    value={filters.cardType}
-                                    onChange={(e) => {
-                                        setFilters({...filters, cardType: e.target.value});
-                                        setCurrentPage(1);
-                                    }}
-                                >
-                                    <option value="all">All Types</option>
-                                    <option value="GOLD">Gold</option>
-                                    <option value="PLATINUM">Platinum</option>
-                                    <option value="SILVER">Silver</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="onboarding-table-container">
-                    <div className="onboarding-table-wrapper">
-                        <table className='onboarding-applications-table'>
-                            <thead>
-                                <tr>
-                                    <th>Select</th>
-                                    <th>Sl. No.</th>
-                                    <th>Application ID</th>
-                                    <th>Card Holder Name</th>
-                                    <th>Status</th>
-                                    <th>Email</th>
-                                    <th>Contact</th>
-                                    <th>Card Type</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {currentItems.length > 0 ? (
-                                    currentItems.map((row, index) => (
-                                        <tr key={row.appId}>
-                                            <td>
-                                                <input
-                                                    type="radio"
-                                                    name="selectedRow"
-                                                    onChange={() => setSelectedRow(row)}
-                                                    checked={selectedRow?.appId === row.appId}
-                                                />
-                                            </td>
-                                            <td>{indexOfFirstItem + index + 1}</td>
-                                            <td><span className="onboarding-app-id" title={row.appId}>{shortId(row.appId)}</span></td>
-                                            <td><div className="onboarding-user-name">{row.fullName}</div></td>
-                                            <td>{getStatusBadge(row.status)}</td>
-                                            <td>
-                                                <a href={`mailto:${row.email}`} className='onboarding-email-link'>
-                                                    {row.email}
-                                                </a>
-                                            </td>
-                                            <td><span className="onboarding-phone-text">{row.phoneNumber}</span></td>
-                                            <td>{row.cardType}</td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan="8" className="text-center text-muted py-3">
-                                            No results found.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Pagination */}
-                    {totalPages > 1 && (
-                        <div className="onboarding-pagination-container">
-                            <button 
-                                className="onboarding-pagination-btn"
-                                onClick={() => paginate(currentPage - 1)}
-                                disabled={currentPage === 1}
-                            >
-                                <ChevronLeft size={18} />
-                                Previous
-                            </button>
-                            <div className="onboarding-pagination-info">
-                                Page {currentPage} of {totalPages}
-                            </div>
-                            <button 
-                                className="onboarding-pagination-btn"
-                                onClick={() => paginate(currentPage + 1)}
-                                disabled={currentPage === totalPages}
-                            >
-                                Next
-                                <ChevronRight size={18} />
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                <div className='onboarding-action-buttons'>
-                    <button 
-                        onClick={handleEdit} 
-                        className="onboarding-action-btn onboarding-edit-btn"
-                        disabled={!selectedRow}
-                    >
-                        <Edit size={18} />
-                        Edit Form
-                    </button>
-                    <Link to="/add/newuser/details">
-                        <button className="onboarding-action-btn onboarding-create-btn">
-                            <PlusCircle size={18} />
-                            Create New
-                        </button>
-                    </Link>
-                </div>
-            </div>
-        </div>
+    return rows.sort((a, b) =>
+      filters.sortDir === "oldest"
+        ? toTime(a.submittedAt) - toTime(b.submittedAt)
+        : toTime(b.submittedAt) - toTime(a.submittedAt)
     );
-};
+  }, [data, filters]);
 
-export default Onboarding;
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredAndSorted.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredAndSorted.length / itemsPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  const stats = {
+    total: data.length,
+    approved: data.filter(a => a.offerStatus === 'APPROVED').length,
+    pending: data.filter(a => !a.offerStatus || a.offerStatus === 'PENDING').length,
+    rejected: data.filter(a => a.offerStatus === 'REJECTED').length
+  };
+
+  const activeFiltersCount = Object.values(filters).filter(v => v !== '' && v !== 'All' && v !== 'oldest').length;
+
+  const resetFilters = () => {
+    setFilters({ query: '', status: 'All', sortDir: 'oldest' });
+    setCurrentPage(1);
+  };
+
+  const handleActionClick = async (row) => {
+    if (disabledIds.has(row.appId)) return;
+    setDisabledIds((prev) => new Set(prev).add(row.appId));
+
+    try {
+      const res = await axios.get(`${API_BASE}/api/offer/credit-score/${row.appId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const updatedRow = { ...row, ...res.data };
+      setWho(updatedRow);
+      bsModal.current?.show();
+    } catch (err) {
+      console.error("Credit Score Error:", err);
+      alert("Unable to generate credit score!");
+      setDisabledIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(row.appId);
+        return newSet;
+      });
+    }
+  };
+
+  const processOffer = async (row, action) => {
+    try {
+      const payload = {
+        appId: row.appId,
+        action,
+        creditScore: row.creditScore,
+      };
+
+      if (action === "REJECTED") {
+        payload.rejectReason = rejectReason;
+      }
+
+      await axios.post(`${API_BASE}/api/offer/process`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      alert(`✅ Application ${action}`);
+      fetchApprovedData();
+      setRejectReason("");
+      bsModal.current?.hide();
+    } catch (err) {
+      console.error("Offer Process Error:", err);
+      alert("❌ Failed to update status");
+    }
+  };
+
+  const openRejectPopup = (row) => {
+    setActionWho(row);
+    const mdl = new Modal(document.getElementById("rejectModal"));
+    mdl.show();
+  };
+
+  const confirmReject = () => {
+    const mdl = Modal.getInstance(document.getElementById("rejectModal"));
+    mdl.hide();
+    processOffer(actionWho, "REJECTED");
+  };
+
+  const getStatusBadge = (status) => {
+    const badges = {
+      APPROVED: { class: 'offer-status-approved', text: 'Approved' },
+      REJECTED: { class: 'offer-status-rejected', text: 'Rejected' }
+    };
+    const badge = badges[status] || { class: 'offer-status-pending', text: status };
+    return <span className={`offer-status-badge ${badge.class}`}>{badge.text}</span>;
+  };
+
+  return (
+    <div className="offer-page-container">
+      <header className="offer-header-section">
+        <div className="offer-header-content">
+          <div className="offer-header-left">
+            <h1 className="offer-page-title">Offer Confirmation</h1>
+            <p className="offer-page-subtitle">Review and process credit offers</p>
+          </div>
+          <div className="offer-stats-container">
+            <div className="offer-stat-card">
+              <div className="offer-stat-icon offer-stat-icon-total">
+                <FileText size={24} />
+              </div>
+              <div className="offer-stat-info">
+                <p className="offer-stat-label">Total Applications</p>
+                <p className="offer-stat-value">{stats.total}</p>
+              </div>
+            </div>
+            <div className="offer-stat-card">
+              <div className="offer-stat-icon offer-stat-icon-pending">
+                <CheckCircle size={24} />
+              </div>
+              <div className="offer-stat-info">
+                <p className="offer-stat-label">Pending Offers</p>
+                <p className="offer-stat-value">{stats.pending}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="offer-content-section">
+        <div className="offer-filters-section">
+          <div className="offer-filters-header">
+            <button
+              className={`offer-filter-toggle-btn ${showFilters ? 'active' : ''}`}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter size={20} />
+              Filters
+              {activeFiltersCount > 0 && (
+                <span className="offer-filter-count">{activeFiltersCount}</span>
+              )}
+            </button>
+            {activeFiltersCount > 0 && (
+              <button className="offer-reset-filters-btn" onClick={resetFilters}>
+                <X size={16} />
+                Reset Filters
+              </button>
+            )}
+          </div>
+          <div className={`offer-filters-content ${showFilters ? 'show' : ''}`}>
+            <div className="offer-filter-grid">
+              <div className="offer-filter-group">
+                <label className="offer-filter-label">Search</label>
+                <div className="offer-search-input-wrapper">
+                  <Search size={18} />
+                  <input
+                    type="text"
+                    className="offer-filter-input"
+                    placeholder="Search by name..."
+                    value={filters.query}
+                    onChange={(e) => {
+                      setFilters({...filters, query: e.target.value});
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="offer-filter-group">
+                <label className="offer-filter-label">Status</label>
+                <select
+                  className="offer-filter-select"
+                  value={filters.status}
+                  onChange={(e) => {
+                    setFilters({...filters, status: e.target.value});
+                    setCurrentPage(1);
+                  }}
+                >
+                  <option value="All">All</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+              </div>
+              <div className="offer-filter-group">
+                <label className="offer-filter-label">Sort By Date</label>
+                <select
+                  className="offer-filter-select"
+                  value={filters.sortDir}
+                  onChange={(e) => setFilters({...filters, sortDir: e.target.value})}
+                >
+                  <option value="oldest">Date (Oldest First)</option>
+                  <option value="newest">Date (Newest First)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="offer-table-container">
+            <p className="text-center py-4">Loading...</p>
+          </div>
+        ) : (
+          <div className="offer-table-container">
+            <div className="offer-table-wrapper">
+              <table className="offer-applications-table">
+                <thead>
+                  <tr>
+                    <th>APPLICANT NO</th>
+                    <th>APPLICANT NAME</th>
+                    <th>APPLICATION DATE</th>
+                    <th>DOCUMENT STATUS</th>
+                    <th>Card Type</th>
+                    <th>ACTION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentItems.map((r) => {
+                    const isDisabled = disabledIds.has(r.appId);
+                    return (
+                      <tr key={r.appId}>
+                        <td><span className="offer-app-id">{r.appId.substring(0, 8)}</span></td>
+                        <td><div className="offer-user-name">{r.fullName}</div></td>
+                        <td><span className="offer-date-text">{r.submittedAt?.split("T")[0]}</span></td>
+                        <td>{getStatusBadge(r.documentVerificationStatus)}</td>
+                        <td>{r.cardType || "-"}</td>
+                        <td>
+                          {r.offerStatus === "APPROVED" ? (
+                            <span className="offer-status-badge offer-status-approved">
+                              <CheckCircle size={16} />
+                              Approved
+                            </span>
+                          ) : r.offerStatus === "REJECTED" ? (
+                            <span className="offer-status-badge offer-status-rejected">
+                              <XCircle size={16} />
+                              Rejected
+                            </span>
+                          ) : (
+                            <div className="d-flex gap-2 flex-wrap">
+                              <button
+                                className="offer-approve-btn"
+                                onClick={() => handleActionClick(r)}
+                                disabled={isDisabled}
+                              >
+                                <CheckCircle size={16} />
+                                Approve
+                              </button>
+                              <button
+                                className="offer-reject-btn"
+                                onClick={() => openRejectPopup(r)}
+                                disabled={isDisabled}
+                              >
+                                <XCircle size={16} />
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {currentItems.length === 0 && (
+                    <tr>
+                      <td colSpan="6" className="text-center text-muted py-3">
+                        No results found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="offer-pagination-container">
+                <button 
+                  className="offer-pagination-btn"
+                  onClick={() => paginate(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft size={18} />
+                  Previous
+                </button>
+                <div className="offer-pagination-info">
+                  Page {currentPage} of {totalPages}
+                </div>
+                <button 
+                  className="offer-pagination-btn"
+                  onClick={() => paginate(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        <p className="mt-3 small text-muted text-center">
+          When credit score is generated, notification is sent automatically.
+        </p>
+      </div>
+
+      {/* Credit Score Modal */}
+      <div className="modal fade" ref={modalRef}>
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content text-center">
+            <div className="modal-header">
+              <h5 className="modal-title">Credit Score Generated ✅</h5>
+              <button className="btn-close" onClick={() => bsModal.current?.hide()}></button>
+            </div>
+            <div className="modal-body">
+              <h5>{who?.fullName}</h5>
+              <p className="fw-bold fs-4">{who?.creditScore}</p>
+              <p className="text-muted">{who?.creditRating}</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-primary" onClick={() => processOffer(who, "APPROVED")}>
+                Confirm Approve ✅
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Reject Modal */}
+      <div className="modal fade" id="rejectModal" tabIndex="-1">
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">Reject Offer</h5>
+              <button className="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div className="modal-body">
+              <label className="form-label">Reason for Rejection</label>
+              <textarea
+                className="form-control"
+                rows="3"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+              />
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" data-bs-dismiss="modal">
+                Cancel
+              </button>
+              <button className="btn btn-danger" onClick={confirmReject}>
+                Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 
 
-/* ONBOARDING PAGE STYLES */
 
-.onboarding-page-container {
+
+
+/* OFFER CONFIRMATION PAGE STYLES */
+
+.offer-page-container {
     min-height: 100vh;
     padding: 2rem;
-    animation: onboardingFadeIn 0.6s ease;
+    animation: offerFadeIn 0.6s ease;
     background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
 }
 
-@keyframes onboardingFadeIn {
+@keyframes offerFadeIn {
     from {
         opacity: 0;
         transform: translateY(20px);
@@ -345,12 +479,12 @@ export default Onboarding;
     }
 }
 
-.onboarding-header-section {
+.offer-header-section {
     margin-bottom: 2rem;
-    animation: onboardingSlideDown 0.5s ease;
+    animation: offerSlideDown 0.5s ease;
 }
 
-@keyframes onboardingSlideDown {
+@keyframes offerSlideDown {
     from {
         opacity: 0;
         transform: translateY(-30px);
@@ -361,7 +495,7 @@ export default Onboarding;
     }
 }
 
-.onboarding-header-content {
+.offer-header-content {
     background: white;
     border-radius: 20px;
     padding: 2rem;
@@ -373,11 +507,11 @@ export default Onboarding;
     flex-wrap: wrap;
 }
 
-.onboarding-header-left {
+.offer-header-left {
     flex: 1;
 }
 
-.onboarding-page-title {
+.offer-page-title {
     font-size: 2rem;
     font-weight: 700;
     color: #1a202c;
@@ -388,18 +522,18 @@ export default Onboarding;
     background-clip: text;
 }
 
-.onboarding-page-subtitle {
+.offer-page-subtitle {
     font-size: 1rem;
     color: #718096;
     margin: 0;
 }
 
-.onboarding-stats-container {
+.offer-stats-container {
     display: flex;
     gap: 1rem;
 }
 
-.onboarding-stat-card {
+.offer-stat-card {
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -410,12 +544,12 @@ export default Onboarding;
     transition: all 0.3s ease;
 }
 
-.onboarding-stat-card:hover {
+.offer-stat-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
 
-.onboarding-stat-icon {
+.offer-stat-icon {
     width: 48px;
     height: 48px;
     border-radius: 12px;
@@ -426,54 +560,54 @@ export default Onboarding;
     overflow: hidden;
 }
 
-.onboarding-stat-icon::before {
+.offer-stat-icon::before {
     content: '';
     position: absolute;
     inset: 0;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
-    animation: onboardingShimmer 2s infinite;
+    animation: offerShimmer 2s infinite;
 }
 
-@keyframes onboardingShimmer {
+@keyframes offerShimmer {
     0% { transform: translateX(-100%) translateY(-100%); }
     100% { transform: translateX(100%) translateY(100%); }
 }
 
-.onboarding-stat-icon-total {
+.offer-stat-icon-total {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
 }
 
-.onboarding-stat-icon-pending {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+.offer-stat-icon-pending {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
     color: white;
 }
 
-.onboarding-stat-info {
+.offer-stat-info {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
 }
 
-.onboarding-stat-label {
+.offer-stat-label {
     font-size: 0.875rem;
     color: #718096;
     margin: 0;
     font-weight: 500;
 }
 
-.onboarding-stat-value {
+.offer-stat-value {
     font-size: 1.5rem;
     font-weight: 700;
     color: #1a202c;
     margin: 0;
 }
 
-.onboarding-content-section {
-    animation: onboardingFadeInUp 0.6s ease 0.2s both;
+.offer-content-section {
+    animation: offerFadeInUp 0.6s ease 0.2s both;
 }
 
-@keyframes onboardingFadeInUp {
+@keyframes offerFadeInUp {
     from {
         opacity: 0;
         transform: translateY(30px);
@@ -484,7 +618,7 @@ export default Onboarding;
     }
 }
 
-.onboarding-filters-section {
+.offer-filters-section {
     background: white;
     border-radius: 20px;
     padding: 1.5rem;
@@ -493,14 +627,14 @@ export default Onboarding;
     transition: all 0.3s ease;
 }
 
-.onboarding-filters-header {
+.offer-filters-header {
     display: flex;
     align-items: center;
     gap: 1rem;
     margin-bottom: 1rem;
 }
 
-.onboarding-filter-toggle-btn {
+.offer-filter-toggle-btn {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -517,7 +651,7 @@ export default Onboarding;
     overflow: hidden;
 }
 
-.onboarding-filter-toggle-btn::before {
+.offer-filter-toggle-btn::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -526,16 +660,16 @@ export default Onboarding;
     transition: transform 0.3s ease;
 }
 
-.onboarding-filter-toggle-btn:hover::before {
+.offer-filter-toggle-btn:hover::before {
     transform: translateX(100%);
 }
 
-.onboarding-filter-toggle-btn:hover {
+.offer-filter-toggle-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(17, 63, 103, 0.4);
 }
 
-.onboarding-filter-count {
+.offer-filter-count {
     background: rgba(255, 255, 255, 0.3);
     padding: 0.25rem 0.5rem;
     border-radius: 6px;
@@ -543,7 +677,7 @@ export default Onboarding;
     font-weight: 700;
 }
 
-.onboarding-reset-filters-btn {
+.offer-reset-filters-btn {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -558,57 +692,57 @@ export default Onboarding;
     transition: all 0.3s ease;
 }
 
-.onboarding-reset-filters-btn:hover {
+.offer-reset-filters-btn:hover {
     background: #edf2f7;
     border-color: #cbd5e0;
     transform: translateY(-2px);
 }
 
-.onboarding-filters-content {
+.offer-filters-content {
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.4s ease, opacity 0.3s ease;
     opacity: 0;
 }
 
-.onboarding-filters-content.show {
+.offer-filters-content.show {
     max-height: 500px;
     opacity: 1;
     margin-top: 1rem;
 }
 
-.onboarding-filter-grid {
+.offer-filter-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 1.25rem;
 }
 
-.onboarding-filter-group {
+.offer-filter-group {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
 }
 
-.onboarding-filter-label {
+.offer-filter-label {
     font-size: 0.875rem;
     font-weight: 600;
     color: #4a5568;
 }
 
-.onboarding-search-input-wrapper {
+.offer-search-input-wrapper {
     position: relative;
     display: flex;
     align-items: center;
 }
 
-.onboarding-search-input-wrapper svg {
+.offer-search-input-wrapper svg {
     position: absolute;
     left: 1rem;
     color: #a0aec0;
     pointer-events: none;
 }
 
-.onboarding-filter-input {
+.offer-filter-input {
     width: 100%;
     padding: 0.875rem 1rem 0.875rem 3rem;
     border: 2px solid #e2e8f0;
@@ -618,14 +752,14 @@ export default Onboarding;
     background: #f7fafc;
 }
 
-.onboarding-filter-input:focus {
+.offer-filter-input:focus {
     outline: none;
     border-color: #667eea;
     background: white;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-.onboarding-filter-select {
+.offer-filter-select {
     width: 100%;
     padding: 0.875rem 1rem;
     border: 2px solid #e2e8f0;
@@ -636,14 +770,14 @@ export default Onboarding;
     transition: all 0.3s ease;
 }
 
-.onboarding-filter-select:focus {
+.offer-filter-select:focus {
     outline: none;
     border-color: #667eea;
     background: white;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-.onboarding-table-container {
+.offer-table-container {
     background: white;
     border-radius: 20px;
     padding: 1.5rem;
@@ -651,22 +785,22 @@ export default Onboarding;
     overflow: hidden;
 }
 
-.onboarding-table-wrapper {
+.offer-table-wrapper {
     overflow-x: auto;
     border-radius: 12px;
 }
 
-.onboarding-applications-table {
+.offer-applications-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
 }
 
-.onboarding-applications-table thead tr {
+.offer-applications-table thead tr {
     background: linear-gradient(135deg, #f6f8fb 0%, #edf2f7 100%);
 }
 
-.onboarding-applications-table th {
+.offer-applications-table th {
     padding: 1.25rem 1rem;
     text-align: left;
     font-size: 0.875rem;
@@ -677,13 +811,13 @@ export default Onboarding;
     border-bottom: 2px solid #e2e8f0;
 }
 
-.onboarding-applications-table tbody tr {
+.offer-applications-table tbody tr {
     transition: all 0.3s ease;
-    animation: onboardingSlideInTable 0.5s ease both;
+    animation: offerSlideInTable 0.5s ease both;
     border-bottom: 1px solid #f7fafc;
 }
 
-@keyframes onboardingSlideInTable {
+@keyframes offerSlideInTable {
     from {
         opacity: 0;
         transform: translateX(-20px);
@@ -694,19 +828,19 @@ export default Onboarding;
     }
 }
 
-.onboarding-applications-table tbody tr:hover {
+.offer-applications-table tbody tr:hover {
     background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
     transform: scale(1.01);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.onboarding-applications-table td {
+.offer-applications-table td {
     padding: 1.25rem 1rem;
     font-size: 0.95rem;
     color: #2d3748;
 }
 
-.onboarding-app-id {
+.offer-app-id {
     font-family: 'Courier New', monospace;
     font-weight: 700;
     color: #667eea;
@@ -716,29 +850,17 @@ export default Onboarding;
     display: inline-block;
 }
 
-.onboarding-user-name {
+.offer-user-name {
     font-weight: 600;
     color: #2d3748;
 }
 
-.onboarding-email-link {
-    color: #667eea;
-    text-decoration: none;
-    transition: color 0.2s;
+.offer-date-text {
+    color: #718096;
+    font-size: 0.9rem;
 }
 
-.onboarding-email-link:hover {
-    color: #764ba2;
-    text-decoration: underline;
-}
-
-.onboarding-phone-text {
-    font-family: 'Courier New', monospace;
-    font-weight: 600;
-    color: #4a5568;
-}
-
-.onboarding-status-badge {
+.offer-status-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
@@ -749,26 +871,109 @@ export default Onboarding;
     text-transform: capitalize;
 }
 
-.onboarding-status-pending {
-    background: linear-gradient(135deg, #fff5e6 0%, #ffe4b3 100%);
-    color: #d97706;
-    border: 2px solid #fbbf24;
-}
-
-.onboarding-status-approved {
+.offer-status-approved {
     background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
     color: #047857;
     border: 2px solid #34d399;
 }
 
-.onboarding-status-rejected {
+.offer-status-rejected {
     background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
     color: #dc2626;
     border: 2px solid #f87171;
 }
 
+.offer-status-pending {
+    background: linear-gradient(135deg, #fff5e6 0%, #ffe4b3 100%);
+    color: #d97706;
+    border: 2px solid #fbbf24;
+}
+
+/* Action Buttons */
+.offer-approve-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: linear-gradient(135deg, #113f67 0%, #38598b 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.offer-approve-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
+    transform: translateX(-100%) rotate(45deg);
+    transition: transform 0.5s ease;
+}
+
+.offer-approve-btn:hover::before {
+    transform: translateX(100%) rotate(45deg);
+}
+
+.offer-approve-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(17, 63, 103, 0.4);
+}
+
+.offer-approve-btn:disabled {
+    background: #cbd5e0;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.offer-reject-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: linear-gradient(135deg, #ef5a5a 0%, #c62828 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.offer-reject-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
+    transform: translateX(-100%) rotate(45deg);
+    transition: transform 0.5s ease;
+}
+
+.offer-reject-btn:hover::before {
+    transform: translateX(100%) rotate(45deg);
+}
+
+.offer-reject-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(239, 90, 90, 0.4);
+}
+
+.offer-reject-btn:disabled {
+    background: #cbd5e0;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 /* Pagination */
-.onboarding-pagination-container {
+.offer-pagination-container {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -778,7 +983,7 @@ export default Onboarding;
     border-top: 2px solid #e2e8f0;
 }
 
-.onboarding-pagination-btn {
+.offer-pagination-btn {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -793,139 +998,67 @@ export default Onboarding;
     transition: all 0.3s ease;
 }
 
-.onboarding-pagination-btn:hover:not(:disabled) {
+.offer-pagination-btn:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(17, 63, 103, 0.4);
 }
 
-.onboarding-pagination-btn:disabled {
+.offer-pagination-btn:disabled {
     background: #cbd5e0;
     cursor: not-allowed;
     opacity: 0.6;
 }
 
-.onboarding-pagination-info {
+.offer-pagination-info {
     font-size: 0.95rem;
     font-weight: 600;
     color: #4a5568;
 }
 
-/* Action Buttons */
-.onboarding-action-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 1rem;
-    margin-top: 1.5rem;
-}
-
-.onboarding-action-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 12px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-    color: white;
-}
-
-.onboarding-action-btn::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
-    transform: translateX(-100%) rotate(45deg);
-    transition: transform 0.5s ease;
-}
-
-.onboarding-action-btn:hover::before {
-    transform: translateX(100%) rotate(45deg);
-}
-
-.onboarding-edit-btn {
-    background: linear-gradient(135deg, #007b8f 0%, #00434e 100%);
-}
-
-.onboarding-edit-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 123, 143, 0.4);
-}
-
-.onboarding-edit-btn:disabled {
-    background: #cbd5e0;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.onboarding-create-btn {
-    background: linear-gradient(135deg, #113f67 0%, #38598b 100%);
-}
-
-.onboarding-create-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(17, 63, 103, 0.4);
-}
-
 /* Responsive */
 @media (max-width: 768px) {
-    .onboarding-page-container {
+    .offer-page-container {
         padding: 1rem;
     }
 
-    .onboarding-header-content {
+    .offer-header-content {
         flex-direction: column;
         padding: 1.5rem;
     }
 
-    .onboarding-stats-container {
+    .offer-stats-container {
         width: 100%;
         flex-direction: column;
     }
 
-    .onboarding-stat-card {
+    .offer-stat-card {
         width: 100%;
     }
 
-    .onboarding-page-title {
+    .offer-page-title {
         font-size: 1.5rem;
     }
 
-    .onboarding-filter-grid {
+    .offer-filter-grid {
         grid-template-columns: 1fr;
     }
 
-    .onboarding-action-buttons {
-        flex-direction: column;
-        width: 100%;
-    }
-
-    .onboarding-action-btn {
-        width: 100%;
-        justify-content: center;
-    }
-
-    .onboarding-pagination-container {
+    .offer-pagination-container {
         flex-direction: column;
         gap: 1rem;
     }
 
-    .onboarding-pagination-btn {
+    .offer-pagination-btn {
         width: 100%;
         justify-content: center;
     }
 
-    .onboarding-applications-table {
+    .offer-applications-table {
         font-size: 0.85rem;
     }
 
-    .onboarding-applications-table th,
-    .onboarding-applications-table td {
+    .offer-applications-table th,
+    .offer-applications-table td {
         padding: 0.75rem 0.5rem;
     }
 }
