@@ -30,6 +30,7 @@
 
 
 
+
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
 import { Modal } from "bootstrap";
@@ -493,7 +494,6 @@ export default function OfferConfirmation() {
 
 
 
-
 /* OFFER CONFIRMATION PAGE STYLES */
 
 .offer-page-container {
@@ -850,6 +850,7 @@ export default function OfferConfirmation() {
     transition: all 0.3s ease;
     animation: offerSlideInTable 0.5s ease both;
     border-bottom: 1px solid #f7fafc;
+    position: relative;
 }
 
 @keyframes offerSlideInTable {
@@ -873,6 +874,7 @@ export default function OfferConfirmation() {
     padding: 1.25rem 1rem;
     font-size: 0.95rem;
     color: #2d3748;
+    position: relative;
 }
 
 .offer-app-id {
@@ -927,7 +929,8 @@ export default function OfferConfirmation() {
 /* Verify Dropdown */
 .offer-verify-dropdown {
     position: relative;
-    display: inline-block;
+    display: inline-flex;
+    justify-content: center;
 }
 
 /* Verify Button */
@@ -979,8 +982,8 @@ export default function OfferConfirmation() {
 .offer-dropdown-menu {
     position: absolute;
     top: calc(100% + 0.5rem);
-    left: 0;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
     background: white;
     border-radius: 12px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
@@ -988,16 +991,17 @@ export default function OfferConfirmation() {
     overflow: hidden;
     animation: offerDropdownSlide 0.3s ease;
     min-width: 150px;
+    border: 2px solid #e2e8f0;
 }
 
 @keyframes offerDropdownSlide {
     from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: translateX(-50%) translateY(-10px);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateX(-50%) translateY(0);
     }
 }
 
@@ -1141,3 +1145,6 @@ export default function OfferConfirmation() {
         padding: 0.75rem 0.5rem;
     }
 }
+
+
+
