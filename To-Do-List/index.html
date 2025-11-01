@@ -31,6 +31,8 @@
 
 
 
+
+
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
 import { Modal } from "bootstrap";
@@ -50,6 +52,7 @@ export default function OfferConfirmation() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [expandedRow, setExpandedRow] = useState(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const [filters, setFilters] = useState({
     query: '',
     status: 'All',
@@ -196,13 +199,20 @@ export default function OfferConfirmation() {
     mdl.show();
   };
 
-  const confirmReject = () => {
+  const getStatusBadge = (status) => {
     const mdl = Modal.getInstance(document.getElementById("rejectModal"));
     mdl.hide();
     processOffer(actionWho, "REJECTED");
   };
 
-  const getStatusBadge = (status) => {
+  const handleVerifyClick = (e, appId) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDropdownPosition({
+      top: rect.bottom + window.scrollY + 5,
+      left: rect.left + window.scrollX
+    });
+    setExpandedRow(expandedRow === appId ? null : appId);
+  };
     const badges = {
       APPROVED: { class: 'offer-status-approved', text: 'Approved' },
       REJECTED: { class: 'offer-status-rejected', text: 'Rejected' }
@@ -211,7 +221,7 @@ export default function OfferConfirmation() {
     return <span className={`offer-status-badge ${badge.class}`}>{badge.text}</span>;
   };
 
-  return (
+  const confirmReject = () => {
     <div className="offer-page-container">
       <header className="offer-header-section">
         <div className="offer-header-content">
@@ -350,42 +360,16 @@ export default function OfferConfirmation() {
                               Rejected
                             </span>
                           ) : (
-                            <div className="offer-verify-dropdown">
+                            <>
                               <button
                                 className="offer-verify-btn"
-                                onClick={() => setExpandedRow(expandedRow === r.appId ? null : r.appId)}
+                                onClick={(e) => handleVerifyClick(e, r.appId)}
                                 disabled={isDisabled}
                               >
                                 <FileText size={16} />
                                 Verify
                               </button>
-                              {expandedRow === r.appId && (
-                                <div className="offer-dropdown-menu">
-                                  <button
-                                    className="offer-dropdown-item offer-approve-item"
-                                    onClick={() => {
-                                      setExpandedRow(null);
-                                      handleActionClick(r);
-                                    }}
-                                    disabled={isDisabled}
-                                  >
-                                    <CheckCircle size={16} />
-                                    Approve
-                                  </button>
-                                  <button
-                                    className="offer-dropdown-item offer-reject-item"
-                                    onClick={() => {
-                                      setExpandedRow(null);
-                                      openRejectPopup(r);
-                                    }}
-                                    disabled={isDisabled}
-                                  >
-                                    <XCircle size={16} />
-                                    Reject
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                            </>
                           )}
                         </td>
                       </tr>
@@ -433,6 +417,43 @@ export default function OfferConfirmation() {
           When credit score is generated, notification is sent automatically.
         </p>
       </div>
+
+      {/* Floating Action Menu */}
+      {expandedRow && (
+        <>
+          <div className="offer-dropdown-overlay" onClick={() => setExpandedRow(null)}></div>
+          <div 
+            className="offer-floating-menu"
+            style={{
+              top: `${dropdownPosition.top}px`,
+              left: `${dropdownPosition.left}px`
+            }}
+          >
+            <button
+              className="offer-dropdown-item offer-approve-item"
+              onClick={() => {
+                const row = currentItems.find(r => r.appId === expandedRow);
+                setExpandedRow(null);
+                handleActionClick(row);
+              }}
+            >
+              <CheckCircle size={16} />
+              Approve
+            </button>
+            <button
+              className="offer-dropdown-item offer-reject-item"
+              onClick={() => {
+                const row = currentItems.find(r => r.appId === expandedRow);
+                setExpandedRow(null);
+                openRejectPopup(row);
+              }}
+            >
+              <XCircle size={16} />
+              Reject
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Credit Score Modal */}
       <div className="modal fade" ref={modalRef}>
@@ -601,6 +622,17 @@ export default function OfferConfirmation() {
     inset: 0;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
     animation: offerShimmer 2s infinite;
+}
+
+@keyframes offerFloatingMenuSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 @keyframes offerShimmer {
@@ -926,13 +958,6 @@ export default function OfferConfirmation() {
     border: 2px solid #fbbf24;
 }
 
-/* Verify Dropdown */
-.offer-verify-dropdown {
-    position: relative;
-    display: inline-flex;
-    justify-content: center;
-}
-
 /* Verify Button */
 .offer-verify-btn {
     display: inline-flex;
@@ -978,31 +1003,28 @@ export default function OfferConfirmation() {
     opacity: 0.6;
 }
 
-/* Dropdown Menu */
-.offer-dropdown-menu {
-    position: absolute;
-    top: calc(100% + 0.5rem);
-    left: 50%;
-    transform: translateX(-50%);
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
-    overflow: hidden;
-    animation: offerDropdownSlide 0.3s ease;
-    min-width: 150px;
-    border: 2px solid #e2e8f0;
+/* Dropdown Overlay */
+.offer-dropdown-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: transparent;
+    z-index: 999;
 }
 
-@keyframes offerDropdownSlide {
-    from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-    }
+/* Floating Menu */
+.offer-floating-menu {
+    position: absolute;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    overflow: hidden;
+    animation: offerFloatingMenuSlide 0.2s ease;
+    min-width: 160px;
+    border: 2px solid #e2e8f0;
 }
 
 /* Dropdown Items */
@@ -1145,6 +1167,3 @@ export default function OfferConfirmation() {
         padding: 0.75rem 0.5rem;
     }
 }
-
-
-
