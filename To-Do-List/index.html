@@ -28,385 +28,394 @@
 </html>
 
 
+/* Pagination */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #e2e8f0;
+}
 
-import React, { useEffect, useRef, useState, useMemo } from "react";
-import axios from "axios";
-import { Modal } from "bootstrap";
-import { FileText, CheckCircle, XCircle, Filter, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import "./OfferConfirmation.css";
+.pagination-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: linear-gradient(135deg, #113f67 0%, #38598b 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(17, 63, 103, 0.4);
+}
+
+.pagination-btn:disabled {
+    background: #cbd5e0;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.pagination-info {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+@media (max-width: 768px) {
+    .pagination-container {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .pagination-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+
+
+
+
+
+
+
+import React, { useEffect, useState } from 'react';
+import { FileText, User, Phone, Calendar, CheckCircle, XCircle, Filter, X, Search, Eye, ArrowLeft, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import VerificationDetails from './VerificationDetails';
+import './DocumentVerificationApp.css'
+import axios from 'axios';
 
 const API_BASE = "http://localhost:8080";
+ 
 
-export default function OfferConfirmation() {
-  const [data, setData] = useState([]);
-  const [who, setWho] = useState(null);
-  const [disabledIds, setDisabledIds] = useState(new Set());
+ 
+const DocumentVerificationApp = () => {
+  const [view, setView] = useState('list');
+  const [selectedApp, setSelectedApp] = useState(null);
+  const [applications, setApplications] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [rejectReason, setRejectReason] = useState("");
-  const [actionWho, setActionWho] = useState(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [selectedReason, setSelectedReason] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionError, setRejectionError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-  const [expandedRow, setExpandedRow] = useState(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const [filters, setFilters] = useState({
-    query: '',
-    status: 'All',
-    sortDir: 'oldest'
+    search: '',
+    status: 'all',
+    cardType: 'all'
   });
 
-  const modalRef = useRef(null);
-  const bsModal = useRef(null);
   const token = localStorage.getItem("token");
 
-  useEffect(() => {
-    if (modalRef.current && !bsModal.current) {
-      bsModal.current = new Modal(modalRef.current, {
-        backdrop: "static",
-        keyboard: true,
-      });
-    }
-  }, []);
 
-  const fetchApprovedData = async () => {
+  const fetchPendingApplications = async () => {
     try {
-      setLoading(true);
-      const res = await axios.get(`${API_BASE}/api/offer/approved`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await axios.get(`${API_BASE}/api/document-verification/pending`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      setData(res.data || []);
+
+      const mapped = res.data.map(app => ({
+        id: app.appId,
+        userName: app.fullName,
+        email: app.email,
+        phone: app.phoneNumber,
+        submittedDate: app.submittedAt?.split("T")[0],
+        status: app.documentVerificationStatus.toLowerCase(),
+        cardType: app.cardType
+      }));
+
+      setApplications(mapped);
+
     } catch (err) {
-      console.error("Fetch Error:", err);
-      setData([]);
-    } finally {
-      setLoading(false);
+      console.error("Fetch error", err);
     }
   };
 
   useEffect(() => {
-    fetchApprovedData();
-  }, []);
-
-  const toTime = (d) => new Date(d).getTime();
-
-  const filteredAndSorted = useMemo(() => {
-    const q = filters.query.trim().toLowerCase();
-    let rows = data.filter((r) => {
-      const s = r.fullName?.toLowerCase() || "";
-      const searchMatch = q === "" || s.includes(q);
-      
-      // Filter by offerStatus (APPROVED, REJECTED, or pending/null)
-      let statusMatch = true;
-      if (filters.status === "APPROVED") {
-        statusMatch = r.offerStatus === "APPROVED";
-      } else if (filters.status === "REJECTED") {
-        statusMatch = r.offerStatus === "REJECTED";
-      }
-      // "All" shows everything
-      
-      return searchMatch && statusMatch;
-    });
-
-    return rows.sort((a, b) =>
-      filters.sortDir === "oldest"
-        ? toTime(a.submittedAt) - toTime(b.submittedAt)
-        : toTime(b.submittedAt) - toTime(a.submittedAt)
-    );
-  }, [data, filters]);
+    fetchPendingApplications();
+  }, [view]);
+ 
+  const filteredApplications = applications.filter(app => {
+    const searchLower = filters.search.toLowerCase();
+    const matchesSearch = filters.search === '' ||
+                         app.userName.toLowerCase().includes(searchLower) ||
+                         app.id.toLowerCase().includes(searchLower) ||
+                         app.email.toLowerCase().includes(searchLower) ||
+                         app.phone.includes(filters.search) ||
+                         app.submittedDate.includes(filters.search) ||
+                         app.cardType.toLowerCase().includes(searchLower);
+    const matchesStatus = filters.status === 'all' || app.status === filters.status;
+    const matchesCardType = filters.cardType === 'all' || app.cardType === filters.cardType;
+    return matchesSearch && matchesStatus && matchesCardType;
+  });
 
   // Pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredAndSorted.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredAndSorted.length / itemsPerPage);
+  const currentItems = filteredApplications.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredApplications.length / itemsPerPage);
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
-
+ 
   const stats = {
-    total: data.length,
-    approved: data.filter(a => a.offerStatus === 'APPROVED').length,
-    pending: data.filter(a => !a.offerStatus || a.offerStatus === 'PENDING').length,
-    rejected: data.filter(a => a.offerStatus === 'REJECTED').length
+    total: applications.length,
+    pending: applications.filter(a => a.status === 'in_progress').length
+  };
+ 
+  const activeFiltersCount = Object.values(filters).filter(v => v !== '' && v !== 'all').length;
+ 
+ const handleVerify = (app) => {
+    setSelectedApp(app);
+    setView("details");
   };
 
-  const activeFiltersCount = Object.values(filters).filter(v => v !== '' && v !== 'All' && v !== 'oldest').length;
-
+  
+ 
+  const handleApprove = () => {
+    setApplications(prev => prev.map(app =>
+      app.id === selectedApp.id ? { ...app, status: 'approved' } : app
+    ));
+    setView('list');
+    setSelectedApp(null);
+  };
+ 
+  const handleReject = () => {
+    if (!rejectionReason.trim()) {
+      setRejectionError('Please provide a rejection reason');
+      return;
+    }
+    setApplications(prev => prev.map(app =>
+      app.id === selectedApp.id ? { ...app, status: 'rejected', rejectionReason } : app
+    ));
+    setShowRejectModal(false);
+    setRejectionReason('');
+    setRejectionError('');
+    setView('list');
+    setSelectedApp(null);
+  };
+ 
   const resetFilters = () => {
-    setFilters({ query: '', status: 'All', sortDir: 'oldest' });
+    setFilters({ search: '', status: 'all', cardType: 'all' });
     setCurrentPage(1);
-  };
-
-  const handleVerifyClick = (e, appId) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setDropdownPosition({
-      top: rect.bottom + window.scrollY + 5,
-      left: rect.left + window.scrollX
-    });
-    setExpandedRow(expandedRow === appId ? null : appId);
-  };
-
-  const handleActionClick = async (row) => {
-    if (disabledIds.has(row.appId)) return;
-    setDisabledIds((prev) => new Set(prev).add(row.appId));
-
-    try {
-      const res = await axios.get(`${API_BASE}/api/offer/credit-score/${row.appId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const updatedRow = { ...row, ...res.data };
-      setWho(updatedRow);
-      bsModal.current?.show();
-    } catch (err) {
-      console.error("Credit Score Error:", err);
-      alert("Unable to generate credit score!");
-      setDisabledIds((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(row.appId);
-        return newSet;
-      });
-    }
-  };
-
-  const handleModalClose = () => {
-    // Re-enable buttons when modal is closed without confirming
-    if (who?.appId) {
-      setDisabledIds((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(who.appId);
-        return newSet;
-      });
-    }
-    setWho(null);
-    bsModal.current?.hide();
-  };
-
-  const processOffer = async (row, action) => {
-    try {
-      const payload = {
-        appId: row.appId,
-        action,
-        creditScore: row.creditScore,
-      };
-
-      if (action === "REJECTED") {
-        payload.rejectReason = rejectReason;
-      }
-
-      await axios.post(`${API_BASE}/api/offer/process`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      alert(`✅ Application ${action}`);
-      fetchApprovedData();
-      setRejectReason("");
-      setExpandedRow(null);
-      bsModal.current?.hide();
-    } catch (err) {
-      console.error("Offer Process Error:", err);
-      alert("❌ Failed to update status");
-    }
-  };
-
-  const openRejectPopup = (row) => {
-    setActionWho(row);
-    const mdl = new Modal(document.getElementById("rejectModal"));
-    mdl.show();
-  };
-
-  const confirmReject = () => {
-    const mdl = Modal.getInstance(document.getElementById("rejectModal"));
-    mdl.hide();
-    processOffer(actionWho, "REJECTED");
   };
 
   const getStatusBadge = (status) => {
     const badges = {
-      APPROVED: { class: 'offer-status-approved', text: 'Approved' },
-      REJECTED: { class: 'offer-status-rejected', text: 'Rejected' }
+      in_progress: { class: 'status-inprogress', icon: <Calendar size={16} />, text: 'Progress' },
+      approved: { class: 'status-approved', icon: <CheckCircle size={16} />, text: 'Approved' },
+      rejected: { class: 'status-rejected', icon: <XCircle size={16} />, text: 'Rejected' }
     };
-    const badge = badges[status] || { class: 'offer-status-pending', text: status };
-    return <span className={`offer-status-badge ${badge.class}`}>{badge.text}</span>;
-  };
 
+    const badge = badges[status] || badges.in_progress;
+
+    return (
+      <span className={`status-badge ${badge.class}`}>
+        {badge.icon}
+        {badge.text}
+      </span>
+    );
+  };
+ 
+  if (view === 'details' && selectedApp) {
+    return <VerificationDetails
+      application={selectedApp}
+      onBack={() => { setView('list'); setSelectedApp(null); }}
+      onApprove={handleApprove}
+      onReject={() => setShowRejectModal(true)}
+      showRejectModal={showRejectModal}
+      setShowRejectModal={setShowRejectModal}
+      rejectionReason={rejectionReason}
+      setRejectionReason={setRejectionReason}
+      rejectionError={rejectionError}
+      setRejectionError={setRejectionError}
+      handleRejectSubmit={handleReject}
+    />;
+  }
+ 
   return (
-    <div className="offer-page-container">
-      <header className="offer-header-section">
-        <div className="offer-header-content">
-          <div className="offer-header-left">
-            <h1 className="offer-page-title">Offer Confirmation</h1>
-            <p className="offer-page-subtitle">Review and process credit offers</p>
+
+    <div className="verification-container">
+      <header className="verification-header">
+        <div className="header-content">
+          <div className="header-left">
+            <h1 className="page-title">Document Verification</h1>
+            <p className="page-subtitle">Review and verify submitted documents</p>
           </div>
-          <div className="offer-stats-container">
-            <div className="offer-stat-card">
-              <div className="offer-stat-icon offer-stat-icon-total">
+          <div className="header-stats">
+            <div className="stat-card">
+              <div className="stat-icon stat-icon-total">
                 <FileText size={24} />
               </div>
-              <div className="offer-stat-info">
-                <p className="offer-stat-label">Total Applications</p>
-                <p className="offer-stat-value">{stats.total}</p>
+              <div className="stat-info">
+                <p className="stat-label">Total Applications</p>
+                <p className="stat-value">{stats.total}</p>
               </div>
             </div>
-            <div className="offer-stat-card">
-              <div className="offer-stat-icon offer-stat-icon-pending">
-                <CheckCircle size={24} />
+            <div className="stat-card">
+              <div className="stat-icon stat-icon-pending">
+                <Calendar size={24} />
               </div>
-              <div className="offer-stat-info">
-                <p className="offer-stat-label">Pending Offers</p>
-                <p className="offer-stat-value">{stats.pending}</p>
+              <div className="stat-info">
+                <p className="stat-label">Pending Review</p>
+                <p className="stat-value">{stats.pending}</p>
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="offer-content-section">
-        <div className="offer-filters-section">
-          <div className="offer-filters-header">
+      <div className="verification-content">
+        <div className="filters-section">
+          <div className="filters-header">
             <button
-              className={`offer-filter-toggle-btn ${showFilters ? 'active' : ''}`}
+              className={`filter-toggle-btn ${showFilters ? 'active' : ''}`}
               onClick={() => setShowFilters(!showFilters)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem 1.5rem',
+                background: showFilters ? 'linear-gradient(135deg, #113f67 0%, #38598b 100%)' : 'linear-gradient(135deg, #113f67 0%, #38598b 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontSize: '0.95rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
             >
               <Filter size={20} />
               Filters
               {activeFiltersCount > 0 && (
-                <span className="offer-filter-count">{activeFiltersCount}</span>
+                <span className="filter-count">{activeFiltersCount}</span>
               )}
             </button>
             {activeFiltersCount > 0 && (
-              <button className="offer-reset-filters-btn" onClick={resetFilters}>
+              <button className="reset-filters-btn" onClick={resetFilters}>
                 <X size={16} />
                 Reset Filters
               </button>
             )}
           </div>
-          <div className={`offer-filters-content ${showFilters ? 'show' : ''}`}>
-            <div className="offer-filter-grid">
-              <div className="offer-filter-group">
-                <label className="offer-filter-label">Search</label>
-                <div className="offer-search-input-wrapper">
+          <div className={`filters-content ${showFilters ? 'show' : ''}`}>
+            <div className="filter-grid">
+              <div className="filter-group">
+                <label className="filter-label">Search</label>
+                <div className="search-input-wrapper">
                   <Search size={18} />
                   <input
                     type="text"
-                    className="offer-filter-input"
-                    placeholder="Search by name..."
-                    value={filters.query}
+                    className="filter-input"
+                    placeholder="Search by name, ID, email, phone, date..."
+                    value={filters.search}
                     onChange={(e) => {
-                      setFilters({...filters, query: e.target.value});
+                      setFilters({...filters, search: e.target.value});
                       setCurrentPage(1);
                     }}
                   />
                 </div>
               </div>
-              <div className="offer-filter-group">
-                <label className="offer-filter-label">Status</label>
+              <div className="filter-group">
+                <label className="filter-label">Status</label>
                 <select
-                  className="offer-filter-select"
+                  className="filter-select"
                   value={filters.status}
                   onChange={(e) => {
                     setFilters({...filters, status: e.target.value});
                     setCurrentPage(1);
                   }}
                 >
-                  <option value="All">All</option>
-                  <option value="APPROVED">Approved</option>
-                  <option value="REJECTED">Rejected</option>
+                  <option value="all">All Status</option>
+                  <option value="in_progress">Progress</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
                 </select>
               </div>
-              <div className="offer-filter-group">
-                <label className="offer-filter-label">Sort By Date</label>
+              <div className="filter-group">
+                <label className="filter-label">Card Type</label>
                 <select
-                  className="offer-filter-select"
-                  value={filters.sortDir}
-                  onChange={(e) => setFilters({...filters, sortDir: e.target.value})}
+                  className="filter-select"
+                  value={filters.cardType}
+                  onChange={(e) => {
+                    setFilters({...filters, cardType: e.target.value});
+                    setCurrentPage(1);
+                  }}
                 >
-                  <option value="oldest">Date (Oldest First)</option>
-                  <option value="newest">Date (Newest First)</option>
+                  <option value="all">All Types</option>
+                  <option value="GOLD">Gold</option>
+                  <option value="PLATINUM">Platinum</option>
+                  <option value="SILVER">silver</option>
                 </select>
               </div>
             </div>
           </div>
         </div>
-
-        {loading ? (
-          <div className="offer-table-container">
-            <p className="text-center py-4">Loading...</p>
-          </div>
-        ) : (
-          <div className="offer-table-container">
-            <div className="offer-table-wrapper">
-              <table className="offer-applications-table">
+        <div className="table-container">
+          <div className="table-wrapper">
+            {currentItems.length > 0 ? (
+              <table className="applications-table">
                 <thead>
                   <tr>
-                    <th>APPLICANT NO</th>
-                    <th>APPLICANT NAME</th>
-                    <th>APPLICATION DATE</th>
-                    <th>DOCUMENT STATUS</th>
-                    <th>Card Type</th>
-                    <th>ACTION</th>
+                    <th>Application ID</th>
+                    <th>User Name</th>
+                    <th>Submitted Date</th>
+                    <th>Status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {currentItems.map((r) => {
-                    const isDisabled = disabledIds.has(r.appId);
-                    return (
-                      <tr key={r.appId}>
-                        <td><span className="offer-app-id">{r.appId.substring(0, 8)}</span></td>
-                        <td><div className="offer-user-name">{r.fullName}</div></td>
-                        <td><span className="offer-date-text">{r.submittedAt?.split("T")[0]}</span></td>
-                        <td>{getStatusBadge(r.documentVerificationStatus)}</td>
-                        <td>{r.cardType || "-"}</td>
-                        <td>
-                          {r.offerStatus === "APPROVED" ? (
-                            <span className="offer-status-badge offer-status-approved" style={{ display: 'inline-flex', minWidth: '120px', justifyContent: 'center' }}>
-                              <CheckCircle size={16} />
-                              Approved
-                            </span>
-                          ) : r.offerStatus === "REJECTED" ? (
-                            <span className="offer-status-badge offer-status-rejected" style={{ display: 'inline-flex', minWidth: '120px', justifyContent: 'center' }}>
-                              <XCircle size={16} />
-                              Rejected
-                            </span>
-                          ) : (
-                            <button
-                              className="offer-verify-btn"
-                              onClick={(e) => handleVerifyClick(e, r.appId)}
-                              disabled={isDisabled}
-                            >
-                              <FileText size={16} />
-                              Verify
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {currentItems.length === 0 && (
-                    <tr>
-                      <td colSpan="6" className="text-center text-muted py-3">
-                        No results found.
+                  {currentItems.map((app, idx) => (
+                    <tr key={app.id}>
+                      <td><span className="app-id">{app.id.substring(0,8)}</span></td>
+                      <td><div className="user-name">{app.userName}</div></td>
+                      <td><span className="date-text">{app.submittedDate}</span></td>
+                      <td>{getStatusBadge(app.status)}</td>
+                      <td>
+                        <button className="verify-btn" onClick={() => handleVerify(app)}>
+                          <Eye size={18} />
+                          Verify
+                        </button>
                       </td>
                     </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
-            </div>
+            ) : (
+              <p>No pending applications found.</p>
+            )}
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="offer-pagination-container">
+              <div className="pagination-container">
                 <button 
-                  className="offer-pagination-btn"
+                  className="pagination-btn"
                   onClick={() => paginate(currentPage - 1)}
                   disabled={currentPage === 1}
                 >
                   <ChevronLeft size={18} />
                   Previous
                 </button>
-                <div className="offer-pagination-info">
+                <div className="pagination-info">
                   Page {currentPage} of {totalPages}
                 </div>
                 <button 
-                  className="offer-pagination-btn"
+                  className="pagination-btn"
                   onClick={() => paginate(currentPage + 1)}
                   disabled={currentPage === totalPages}
                 >
@@ -416,107 +425,38 @@ export default function OfferConfirmation() {
               </div>
             )}
           </div>
-        )}
-
-        <p className="mt-3 small text-muted text-center">
-          When credit score is generated, notification is sent automatically.
-        </p>
+        </div>
       </div>
-
-      {/* Floating Action Menu */}
-      {expandedRow && (
-        <>
-          <div className="offer-dropdown-overlay" onClick={() => setExpandedRow(null)}></div>
-          <div 
-            className="offer-floating-menu"
-            style={{
-              top: `${dropdownPosition.top}px`,
-              left: `${dropdownPosition.left}px`
-            }}
-          >
-            <button
-              className="offer-dropdown-item offer-approve-item"
-              onClick={() => {
-                const row = currentItems.find(r => r.appId === expandedRow);
-                setExpandedRow(null);
-                handleActionClick(row);
-              }}
-            >
-              <CheckCircle size={16} />
-              Approve
-            </button>
-            <button
-              className="offer-dropdown-item offer-reject-item"
-              onClick={() => {
-                const row = currentItems.find(r => r.appId === expandedRow);
-                setExpandedRow(null);
-                openRejectPopup(row);
-              }}
-            >
-              <XCircle size={16} />
-              Reject
-            </button>
+    
+   
+ 
+      {showReasonModal && (
+        <div className="modal-overlay" onClick={() => setShowReasonModal(false)}>
+          <div className="simple-reason-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="simple-modal-header">
+              <div className="reason-icon-wrapper">
+                <XCircle size={24} />
+              </div>
+              <h3 className="simple-modal-title">Rejection Reason</h3>
+              <button className="simple-modal-close" onClick={() => setShowReasonModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="simple-modal-body">
+              <div className="reason-box">
+                <p className="reason-text">{selectedReason}</p>
+              </div>
+            </div>
+            <div className="simple-modal-footer">
+              <button className="simple-close-btn" onClick={() => setShowReasonModal(false)}>
+                Close
+              </button>
+            </div>
           </div>
-        </>
+        </div>
       )}
-
-      {/* Credit Score Modal */}
-      <div className="modal fade" ref={modalRef}>
-        <div className="modal-dialog modal-dialog-centered">
-          <div className="modal-content text-center">
-            <div className="modal-header">
-              <h5 className="modal-title">Credit Score Generated ✅</h5>
-              <button className="btn-close" onClick={handleModalClose}></button>
-            </div>
-            <div className="modal-body">
-              <h5>{who?.fullName}</h5>
-              <p className="fw-bold fs-4">{who?.creditScore}</p>
-              <p className="text-muted">{who?.creditRating}</p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={handleModalClose}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" onClick={() => processOffer(who, "APPROVED")}>
-                Confirm Approve ✅
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Reject Modal */}
-      <div className="modal fade" id="rejectModal" tabIndex="-1">
-        <div className="modal-dialog modal-dialog-centered">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h5 className="modal-title">Reject Offer</h5>
-              <button className="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div className="modal-body">
-              <label className="form-label">Reason for Rejection</label>
-              <textarea
-                className="form-control"
-                rows="3"
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-              />
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" data-bs-dismiss="modal">
-                Cancel
-              </button>
-              <button className="btn btn-danger" onClick={confirmReject}>
-                Reject
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+     </div>
   );
-}
-
-
-
-
+};
+ 
+export default DocumentVerificationApp;
