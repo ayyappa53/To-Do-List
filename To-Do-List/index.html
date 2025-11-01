@@ -28,53 +28,20 @@
 </html>
 
 
-const downloadDocument = async (type, filename) => {
-    try {
-        const response = await axios.get(
-            `${API_BASE}/api/application/${id}/download/${type}/${filename}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                },
-                responseType: 'blob'  // Important!
-            }
-        );
-
-        // Create blob and trigger download
-        const blob = new Blob([response.data], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-
-        toast.success("📥 Document downloaded successfully");
-    } catch (error) {
-        console.error("Download error:", error);
-        toast.error("❌ Failed to download document");
-    }
-};
 
 
 
-
-
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { ArrowLeft, Download, Upload, User, Mail, Phone, Calendar, MapPin, CreditCard, FileText, Save } from 'lucide-react';
-import "./EditApplication.css";
+import axios from "axios";
+import { ArrowLeft, Upload, CheckCircle } from "lucide-react";
+import PersonalDetails from "./PersonalDetails";
+import DocumentForm from "./DocumentForm";
+import "./Documents.css";
 
-const API_BASE = "http://localhost:8080";
-
-function EditApplication() {
+function Documents() {
     const navigate = useNavigate();
-    const { id } = useParams();
-
     const [formData, setFormData] = useState({
         fullName: "",
         dateOfBirth: "",
@@ -85,437 +52,472 @@ function EditApplication() {
         aadharPdf: null,
         panPdf: null,
         incomeProofPdf: null,
+        declareInfo: false,
+        authorize: false,
     });
 
-    const [serverFiles, setServerFiles] = useState({});
-    const [errors, setErrors] = useState({});
-    const token = localStorage.getItem("token");
-
-    useEffect(() => {
-        loadApplicationData();
-    }, [id]);
-
-    const loadApplicationData = async () => {
-        try {
-            const response = await axios.get(`${API_BASE}/api/application/${id}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            const data = response.data;
-            setFormData({
-                fullName: data.fullName || "",
-                dateOfBirth: data.dateOfBirth || "",
-                phoneNumber: data.phoneNumber || "",
-                email: data.email || "",
-                address: data.address || "",
-                cardType: data.cardType || "",
-                aadharPdf: null,
-                panPdf: null,
-                incomeProofPdf: null,
-            });
-
-            setServerFiles({
-                aadhar: data.aadharFilename,
-                pan: data.panFilename,
-                income: data.incomeProofFilename,
-            });
-
-        } catch (err) {
-            toast.error("❌ Error loading application");
-            console.error(err);
-        }
-    };
-
-    const handleInputChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-        // Clear error when user starts typing
-        if (errors[e.target.name]) {
-            setErrors({ ...errors, [e.target.name]: "" });
-        }
-    };
-
-    const handleFileChange = (e, field) => {
-        const file = e.target.files[0];
-        if (file && file.type === "application/pdf") {
-            setFormData({ ...formData, [field]: file });
-            if (errors[field]) {
-                setErrors({ ...errors, [field]: "" });
-            }
-        } else {
-            toast.error("Please upload PDF files only");
-        }
-    };
-
-    const validateForm = () => {
-        const newErrors = {};
-        if (!formData.fullName.trim()) newErrors.fullName = "Full Name Required";
-        if (!/^[0-9]{10}$/.test(formData.phoneNumber)) newErrors.phoneNumber = "Valid 10-digit Phone Required";
-        if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Valid Email Required";
-        if (!formData.dateOfBirth) newErrors.dateOfBirth = "Date of Birth Required";
-        if (!formData.address.trim()) newErrors.address = "Address Required";
-        if (!formData.cardType) newErrors.cardType = "Card Type Required";
-
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
+    const handleChange = (field, value) => {
+        setFormData((prev) => ({ ...prev, [field]: value }));
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!validateForm()) {
-            toast.error("Please fix all errors before submitting");
+
+        // Validation
+        if (!formData.declareInfo || !formData.authorize) {
+            toast.error("Please accept both declarations!");
             return;
         }
 
-        const payload = new FormData();
-        Object.entries(formData).forEach(([key, value]) => {
-            if (value !== null && value !== "") payload.append(key, value);
-        });
+        if (!formData.fullName || !formData.email || !formData.phoneNumber || 
+            !formData.dateOfBirth || !formData.address || !formData.cardType) {
+            toast.error("Please fill all required fields!");
+            return;
+        }
+
+        if (!formData.aadharPdf || !formData.panPdf || !formData.incomeProofPdf) {
+            toast.error("Please upload all required documents!");
+            return;
+        }
+
+        const token = localStorage.getItem("token");
+        if (!token) {
+            toast.error("Please login first!");
+            return;
+        }
+
+        const form = new FormData();
+        form.append("fullName", formData.fullName);
+        form.append("email", formData.email);
+        form.append("phoneNumber", formData.phoneNumber);
+        form.append("dateOfBirth", formData.dateOfBirth);
+        form.append("address", formData.address);
+        form.append("cardType", formData.cardType);
+        form.append("aadharPdf", formData.aadharPdf);
+        form.append("panPdf", formData.panPdf);
+        form.append("incomeProofPdf", formData.incomeProofPdf);
 
         try {
-            await axios.put(`${API_BASE}/api/application/update/${id}`, payload, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "multipart/form-data",
-                },
-            });
-
-            toast.success("✅ Application Updated Successfully!");
-            navigate("/onboarding");
+            const response = await axios.post(
+                "http://localhost:8080/api/application/submit",
+                form,
+                {
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "multipart/form-data",
+                    },
+                }
+            );
+            console.log("Response from backend:", response.data);
+            toast.success("Application submitted successfully!");
+            
+            // Redirect to onboarding page after successful submission
+            setTimeout(() => {
+                navigate('/onboarding');
+            }, 1500);
 
         } catch (error) {
-            toast.error("❌ Update Failed");
-            console.error(error);
+            toast.error("Submission failed! Please try again.");
+            console.error("Error uploading documents:", error);
         }
     };
 
-    const downloadDocument = (type, filename) => {
-        const url = `${API_BASE}/api/application/${id}/download/${type}/${filename}`;
-        
-        // Create a temporary link and trigger download
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        toast.success("📥 Document download started");
-    };
-
     return (
-        <div className="edit-app-container">
-            {/* Header */}
-            <div className="edit-app-header">
-                <button className="edit-back-btn" onClick={() => navigate("/onboarding")}>
-                    <ArrowLeft size={20} />
-                    Back to Applications
-                </button>
-                <h1 className="edit-app-title">Edit Application</h1>
-                <p className="edit-app-subtitle">Update application details and documents</p>
-            </div>
+        <div className="document-container">
+            {/* Back Button */}
+            <button 
+                onClick={() => navigate('/onboarding')} 
+                className="back-button"
+                type="button"
+            >
+                <ArrowLeft size={20} />
+                Back to Applications
+            </button>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="edit-app-form">
-                {/* Personal Information Section */}
-                <div className="edit-form-section">
-                    <div className="edit-section-header">
-                        <User size={24} />
-                        <h2>Personal Information</h2>
-                    </div>
-                    <div className="edit-form-grid">
-                        <div className="edit-form-group">
-                            <label className="edit-form-label">
-                                <User size={18} />
-                                Full Name *
-                            </label>
-                            <input
-                                type="text"
-                                name="fullName"
-                                value={formData.fullName}
-                                onChange={handleInputChange}
-                                className={`edit-form-input ${errors.fullName ? 'error' : ''}`}
-                                placeholder="Enter full name"
-                            />
-                            {errors.fullName && <span className="edit-error-text">{errors.fullName}</span>}
-                        </div>
+            <h2 className="gradient-text">Add New Application</h2>
+            <p className="subtitle">Fill in the details to create a new credit card application</p>
 
-                        <div className="edit-form-group">
-                            <label className="edit-form-label">
-                                <Phone size={18} />
-                                Phone Number *
-                            </label>
-                            <input
-                                type="text"
-                                name="phoneNumber"
-                                value={formData.phoneNumber}
-                                onChange={handleInputChange}
-                                className={`edit-form-input ${errors.phoneNumber ? 'error' : ''}`}
-                                placeholder="Enter 10-digit phone number"
-                                maxLength="10"
-                            />
-                            {errors.phoneNumber && <span className="edit-error-text">{errors.phoneNumber}</span>}
-                        </div>
+            <form onSubmit={handleSubmit}>
+                <PersonalDetails formData={formData} onChange={handleChange} />
+                <DocumentForm formData={formData} onChange={handleChange} />
 
-                        <div className="edit-form-group">
-                            <label className="edit-form-label">
-                                <Mail size={18} />
-                                Email *
-                            </label>
-                            <input
-                                type="email"
-                                name="email"
-                                value={formData.email}
-                                onChange={handleInputChange}
-                                className={`edit-form-input ${errors.email ? 'error' : ''}`}
-                                placeholder="Enter email address"
-                            />
-                            {errors.email && <span className="edit-error-text">{errors.email}</span>}
-                        </div>
-
-                        <div className="edit-form-group">
-                            <label className="edit-form-label">
-                                <Calendar size={18} />
-                                Date of Birth *
-                            </label>
-                            <input
-                                type="date"
-                                name="dateOfBirth"
-                                value={formData.dateOfBirth}
-                                onChange={handleInputChange}
-                                className={`edit-form-input ${errors.dateOfBirth ? 'error' : ''}`}
-                            />
-                            {errors.dateOfBirth && <span className="edit-error-text">{errors.dateOfBirth}</span>}
-                        </div>
-                    </div>
-
-                    <div className="edit-form-group full-width">
-                        <label className="edit-form-label">
-                            <MapPin size={18} />
-                            Address *
-                        </label>
-                        <textarea
-                            name="address"
-                            value={formData.address}
-                            onChange={handleInputChange}
-                            className={`edit-form-textarea ${errors.address ? 'error' : ''}`}
-                            placeholder="Enter complete address"
-                            rows="3"
+                <div className="declaration">
+                    <div className="form-check">
+                        <input 
+                            type="checkbox" 
+                            checked={formData.declareInfo}
+                            onChange={(e) => handleChange("declareInfo", e.target.checked)}
+                            id="declareInfo"
                         />
-                        {errors.address && <span className="edit-error-text">{errors.address}</span>}
-                    </div>
-
-                    <div className="edit-form-group">
-                        <label className="edit-form-label">
-                            <CreditCard size={18} />
-                            Card Type *
+                        <label htmlFor="declareInfo">
+                            I declare that the above information is true and accurate.
                         </label>
-                        <select
-                            name="cardType"
-                            value={formData.cardType}
-                            onChange={handleInputChange}
-                            className={`edit-form-select ${errors.cardType ? 'error' : ''}`}
-                        >
-                            <option value="">Select Card Type</option>
-                            <option value="GOLD">Gold</option>
-                            <option value="SILVER">Silver</option>
-                            <option value="PLATINUM">Platinum</option>
-                        </select>
-                        {errors.cardType && <span className="edit-error-text">{errors.cardType}</span>}
+                    </div>
+
+                    <div className="form-check">
+                        <input 
+                            type="checkbox" 
+                            checked={formData.authorize}
+                            onChange={(e) => handleChange("authorize", e.target.checked)}
+                            id="authorize"
+                        />
+                        <label htmlFor="authorize">
+                            I authorize the bank to verify my details and documents.
+                        </label>
                     </div>
                 </div>
 
-                {/* Documents Section */}
-                <div className="edit-form-section">
-                    <div className="edit-section-header">
-                        <FileText size={24} />
-                        <h2>Documents</h2>
-                    </div>
-
-                    {/* Aadhar */}
-                    <div className="edit-document-group">
-                        <label className="edit-form-label">Aadhar Card</label>
-                        <div className="edit-file-input-wrapper">
-                            <label className="edit-file-input-label">
-                                <Upload size={18} />
-                                {formData.aadharPdf ? formData.aadharPdf.name : "Choose new file..."}
-                                <input
-                                    type="file"
-                                    accept="application/pdf"
-                                    onChange={(e) => handleFileChange(e, "aadharPdf")}
-                                    className="edit-file-input-hidden"
-                                />
-                            </label>
-                            {serverFiles.aadhar && (
-                                <button
-                                    type="button"
-                                    className="edit-download-btn"
-                                    onClick={() => downloadDocument("aadhar", serverFiles.aadhar)}
-                                >
-                                    <Download size={18} />
-                                    Download
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* PAN */}
-                    <div className="edit-document-group">
-                        <label className="edit-form-label">PAN Card</label>
-                        <div className="edit-file-input-wrapper">
-                            <label className="edit-file-input-label">
-                                <Upload size={18} />
-                                {formData.panPdf ? formData.panPdf.name : "Choose new file..."}
-                                <input
-                                    type="file"
-                                    accept="application/pdf"
-                                    onChange={(e) => handleFileChange(e, "panPdf")}
-                                    className="edit-file-input-hidden"
-                                />
-                            </label>
-                            {serverFiles.pan && (
-                                <button
-                                    type="button"
-                                    className="edit-download-btn"
-                                    onClick={() => downloadDocument("pan", serverFiles.pan)}
-                                >
-                                    <Download size={18} />
-                                    Download
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Income Proof */}
-                    <div className="edit-document-group">
-                        <label className="edit-form-label">Income Proof</label>
-                        <div className="edit-file-input-wrapper">
-                            <label className="edit-file-input-label">
-                                <Upload size={18} />
-                                {formData.incomeProofPdf ? formData.incomeProofPdf.name : "Choose new file..."}
-                                <input
-                                    type="file"
-                                    accept="application/pdf"
-                                    onChange={(e) => handleFileChange(e, "incomeProofPdf")}
-                                    className="edit-file-input-hidden"
-                                />
-                            </label>
-                            {serverFiles.income && (
-                                <button
-                                    type="button"
-                                    className="edit-download-btn"
-                                    onClick={() => downloadDocument("income-proof", serverFiles.income)}
-                                >
-                                    <Download size={18} />
-                                    Download
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Submit Button */}
-                <div className="edit-form-actions">
-                    <button type="submit" className="edit-submit-btn">
-                        <Save size={20} />
-                        Update Application
+                <div className="actions">
+                    <button 
+                        type="submit" 
+                        className="submit-btn"
+                        disabled={!formData.declareInfo || !formData.authorize}
+                    >
+                        <CheckCircle size={20} />
+                        Submit Application
                     </button>
+                    
+                    <Link to='/doc-verification'>
+                        <button 
+                            type="button" 
+                            className="verify-btn"
+                        >
+                            <Upload size={20} />
+                            Verify Documents
+                        </button>
+                    </Link>
                 </div>
             </form>
         </div>
     );
 }
 
-export default EditApplication;
+export default Documents;
 
 
 
 
 
-/* Edit Application Container */
-.edit-app-container {
-    min-height: 100vh;
-    padding: 2rem;
-    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
-    animation: editFadeIn 0.6s ease;
-}
 
-@keyframes editFadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Header */
-.edit-app-header {
-    background: white;
+.document-container {
+    width: 95%;
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #fff;
     border-radius: 20px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-    animation: editSlideDown 0.5s ease;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1),
+                0 0 20px rgba(33, 150, 243, 0.08);
+    animation: fadeInUp 0.6s ease forwards;
+    transition: all 0.5s ease;
+    position: relative;
+    overflow: hidden;
 }
 
-@keyframes editSlideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.document-container::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 150px;
+    height: 150px;
+    background: radial-gradient(circle, rgba(0, 123, 143, 0.1), transparent);
+    z-index: 0;
 }
 
-.edit-back-btn {
-    display: inline-flex;
+/* Back Button */
+.back-button {
+    display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.25rem;
-    background: linear-gradient(135deg, #113f67 0%, #38598b 100%);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 0.9rem;
+    gap: 8px;
+    background: transparent;
+    border: 2px solid #007b8f;
+    color: #007b8f;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 15px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
-    margin-bottom: 1rem;
+    margin-bottom: 20px;
+    width: fit-content;
 }
 
-.edit-back-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(17, 63, 103, 0.4);
+.back-button:hover {
+    background: #007b8f;
+    color: white;
+    transform: translateX(-5px);
 }
 
-.edit-app-title {
-    font-size: 2rem;
+/* Header Styles */
+.gradient-text {
+    text-align: center;
+    color: #007b8f;
+    margin-bottom: 10px;
+    font-size: clamp(24px, 5vw, 32px);
+    letter-spacing: 1px;
     font-weight: 700;
-    color: #1a202c;
-    margin: 0 0 0.5rem 0;
-    background: linear-gradient(to bottom, #007b8f, #00434e);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    position: relative;
+    z-index: 1;
 }
 
-.edit-app-subtitle {
-    font-size: 1rem;
-    color: #718096;
+.subtitle {
+    text-align: center;
+    color: #666;
+    font-size: 16px;
+    margin-bottom: 30px;
+    font-weight: 400;
+}
+
+/* Card Styles */
+.card {
+    background: linear-gradient(145deg, #fff, #f8f9fa);
+    padding: 25px;
+    margin-bottom: 20px;
+    border-radius: 15px;
+    border: 1px solid rgba(0, 123, 143, 0.1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    position: relative;
+    z-index: 1;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 123, 143, 0.15);
+}
+
+.card h3 {
+    color: #007b8f;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #007b8f;
+    font-size: clamp(18px, 4vw, 22px);
+    font-weight: 600;
+}
+
+/* Form Groups */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+    position: relative;
+    z-index: 1;
+}
+
+.form-group label {
+    width: 100%;
+    font-weight: 600;
+    color: #333;
+    font-size: clamp(14px, 3.5vw, 15px);
+    margin-bottom: 8px;
+    transition: color 0.3s ease;
+}
+
+.form-group:hover label {
+    color: #007b8f;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+    font-size: clamp(14px, 3.5vw, 15px);
+    transition: all 0.3s ease;
+    outline: none;
+    background: #fff;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    border-color: #007b8f;
+    box-shadow: 0 0 0 3px rgba(0, 123, 143, 0.1);
+}
+
+.form-group input[type="file"] {
+    padding: 10px;
+    border: 2px dashed #ccc;
+    background: #f9fbfc;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.form-group input[type="file"]:hover {
+    border-color: #007b8f;
+    background: #fff;
+}
+
+/* Declaration Section */
+.declaration {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 25px 0;
+    border-left: 4px solid #007b8f;
+}
+
+.declaration .form-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.declaration .form-check:hover {
+    background: rgba(0, 123, 143, 0.05);
+}
+
+.declaration input[type="checkbox"] {
+    margin-top: 3px;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #007b8f;
+}
+
+.declaration label {
     margin: 0;
+    font-weight: 500;
+    color: #333;
+    font-size: 15px;
+    line-height: 1.5;
+    cursor: pointer;
 }
 
-/* Form */
-.edit-app-form {
-    animation: editFadeInUp 0.6s ease 0.2s both;
+/* Action Buttons */
+.actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 2px solid #f0f0f0;
 }
 
-@keyframes editFadeInUp {
+.actions button {
+    width: 100%;
+    max-width: 300px;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #fff;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.submit-btn {
+    background: linear-gradient(135deg, #007b8f 0%, #00434e 100%);
+}
+
+.submit-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 123, 143, 0.3);
+}
+
+.submit-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.verify-btn {
+    background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+}
+
+.verify-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(33, 150, 243, 0.3);
+}
+
+/* Responsive Design */
+@media (min-width: 768px) {
+    .document-container {
+        padding: 30px 40px;
+        margin: 50px auto;
+    }
+
+    .card {
+        padding: 30px;
+    }
+
+    .form-group {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .form-group label {
+        width: 220px;
+        margin-bottom: 0;
+        margin-right: 20px;
+    }
+
+    .form-group input,
+    .form-group select {
+        flex: 1;
+    }
+
+    .actions {
+        flex-direction: row;
+        justify-content: center;
+        gap: 20px;
+    }
+
+    .actions button {
+        width: auto;
+        min-width: 180px;
+    }
+}
+
+@media (min-width: 1200px) {
+    .document-container {
+        padding: 40px 50px;
+        margin: 60px auto;
+    }
+
+    .card {
+        padding: 35px;
+    }
+
+    .gradient-text {
+        font-size: 36px;
+    }
+
+    .form-group label {
+        font-size: 16px;
+    }
+
+    .form-group input,
+    .form-group select {
+        font-size: 16px;
+        padding: 14px;
+    }
+
+    .declaration {
+        font-size: 16px;
+    }
+
+    .actions button {
+        font-size: 17px;
+        padding: 16px 28px;
+    }
+}
+
+/* Animation */
+@keyframes fadeInUp {
     from {
         opacity: 0;
         transform: translateY(30px);
@@ -525,245 +527,3 @@ export default EditApplication;
         transform: translateY(0);
     }
 }
-
-.edit-form-section {
-    background: white;
-    border-radius: 20px;
-    padding: 2rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-}
-
-.edit-section-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #e2e8f0;
-}
-
-.edit-section-header svg {
-    color: #667eea;
-}
-
-.edit-section-header h2 {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #1a202c;
-    margin: 0;
-}
-
-.edit-form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.25rem;
-    margin-bottom: 1.25rem;
-}
-
-.edit-form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.edit-form-group.full-width {
-    grid-column: 1 / -1;
-}
-
-.edit-form-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #4a5568;
-}
-
-.edit-form-label svg {
-    color: #667eea;
-}
-
-.edit-form-input,
-.edit-form-select,
-.edit-form-textarea {
-    width: 100%;
-    padding: 0.875rem 1rem;
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
-    font-size: 0.95rem;
-    transition: all 0.3s ease;
-    background: #f7fafc;
-}
-
-.edit-form-input:focus,
-.edit-form-select:focus,
-.edit-form-textarea:focus {
-    outline: none;
-    border-color: #667eea;
-    background: white;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.edit-form-input.error,
-.edit-form-select.error,
-.edit-form-textarea.error {
-    border-color: #f87171;
-    background: #fef2f2;
-}
-
-.edit-form-textarea {
-    resize: vertical;
-    min-height: 80px;
-}
-
-.edit-error-text {
-    font-size: 0.8rem;
-    color: #dc2626;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    animation: editErrorSlide 0.3s ease;
-}
-
-@keyframes editErrorSlide {
-    from {
-        opacity: 0;
-        transform: translateY(-5px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Document Upload */
-.edit-document-group {
-    margin-bottom: 1.25rem;
-}
-
-.edit-file-input-wrapper {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.edit-file-input-label {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.875rem 1rem;
-    background: linear-gradient(135deg, #f6f8fb 0%, #ffffff 100%);
-    border: 2px dashed #cbd5e0;
-    border-radius: 12px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #4a5568;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    min-width: 200px;
-}
-
-.edit-file-input-label:hover {
-    border-color: #667eea;
-    background: linear-gradient(135deg, #f0f4ff 0%, #ffffff 100%);
-    transform: translateY(-2px);
-}
-
-.edit-file-input-label svg {
-    color: #667eea;
-}
-
-.edit-file-input-hidden {
-    display: none;
-}
-
-.edit-download-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.875rem 1.25rem;
-    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    white-space: nowrap;
-}
-
-.edit-download-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(72, 187, 120, 0.4);
-}
-
-/* Form Actions */
-.edit-form-actions {
-    display: flex;
-    justify-content: center;
-    margin-top: 2rem;
-}
-
-.edit-submit-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 1rem 3rem;
-    background: linear-gradient(135deg, #007b8f 0%, #00434e 100%);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(0, 123, 143, 0.3);
-}
-
-.edit-submit-btn:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 20px rgba(0, 123, 143, 0.4);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .edit-app-container {
-        padding: 1rem;
-    }
-
-    .edit-app-header {
-        padding: 1.5rem;
-    }
-
-    .edit-app-title {
-        font-size: 1.5rem;
-    }
-
-    .edit-form-section {
-        padding: 1.5rem;
-    }
-
-    .edit-form-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .edit-file-input-wrapper {
-        flex-direction: column;
-    }
-
-    .edit-file-input-label,
-    .edit-download-btn {
-        width: 100%;
-        justify-content: center;
-    }
-
-    .edit-submit-btn {
-        width: 100%;
-        justify-content: center;
-    }
-}
-
