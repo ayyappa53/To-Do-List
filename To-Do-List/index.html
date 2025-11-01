@@ -28,19 +28,440 @@
 </html>
 
 
-/* Pagination */
-.pagination-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 1.5rem;
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
-    border-top: 2px solid #e2e8f0;
+
+
+
+
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "react-toastify";
+import { ArrowLeft, Eye, Upload, User, Mail, Phone, Calendar, MapPin, CreditCard, FileText, Save } from 'lucide-react';
+import "./EditApplication.css";
+
+const API_BASE = "http://localhost:8080";
+
+function EditApplication() {
+    const navigate = useNavigate();
+    const { id } = useParams();
+
+    const [formData, setFormData] = useState({
+        fullName: "",
+        dateOfBirth: "",
+        phoneNumber: "",
+        email: "",
+        address: "",
+        cardType: "",
+        aadharPdf: null,
+        panPdf: null,
+        incomeProofPdf: null,
+    });
+
+    const [serverFiles, setServerFiles] = useState({});
+    const [errors, setErrors] = useState({});
+    const [showPdfModal, setShowPdfModal] = useState(false);
+    const [currentPdfUrl, setCurrentPdfUrl] = useState("");
+    const [currentPdfType, setCurrentPdfType] = useState("");
+    const token = localStorage.getItem("token");
+
+    useEffect(() => {
+        loadApplicationData();
+    }, [id]);
+
+    const loadApplicationData = async () => {
+        try {
+            const response = await axios.get(`${API_BASE}/api/application/${id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            const data = response.data;
+            setFormData({
+                fullName: data.fullName || "",
+                dateOfBirth: data.dateOfBirth || "",
+                phoneNumber: data.phoneNumber || "",
+                email: data.email || "",
+                address: data.address || "",
+                cardType: data.cardType || "",
+                aadharPdf: null,
+                panPdf: null,
+                incomeProofPdf: null,
+            });
+
+            setServerFiles({
+                aadhar: data.aadharFilename,
+                pan: data.panFilename,
+                income: data.incomeProofFilename,
+            });
+
+        } catch (err) {
+            toast.error("❌ Error loading application");
+            console.error(err);
+        }
+    };
+
+    const handleInputChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+        // Clear error when user starts typing
+        if (errors[e.target.name]) {
+            setErrors({ ...errors, [e.target.name]: "" });
+        }
+    };
+
+    const handleFileChange = (e, field) => {
+        const file = e.target.files[0];
+        if (file && file.type === "application/pdf") {
+            setFormData({ ...formData, [field]: file });
+            if (errors[field]) {
+                setErrors({ ...errors, [field]: "" });
+            }
+        } else {
+            toast.error("Please upload PDF files only");
+        }
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+        if (!formData.fullName.trim()) newErrors.fullName = "Full Name Required";
+        if (!/^[0-9]{10}$/.test(formData.phoneNumber)) newErrors.phoneNumber = "Valid 10-digit Phone Required";
+        if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Valid Email Required";
+        if (!formData.dateOfBirth) newErrors.dateOfBirth = "Date of Birth Required";
+        if (!formData.address.trim()) newErrors.address = "Address Required";
+        if (!formData.cardType) newErrors.cardType = "Card Type Required";
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!validateForm()) {
+            toast.error("Please fix all errors before submitting");
+            return;
+        }
+
+        const payload = new FormData();
+        Object.entries(formData).forEach(([key, value]) => {
+            if (value !== null && value !== "") payload.append(key, value);
+        });
+
+        try {
+            await axios.put(`${API_BASE}/api/application/update/${id}`, payload, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "multipart/form-data",
+                },
+            });
+
+            toast.success("✅ Application Updated Successfully!");
+            navigate("/onboarding");
+
+        } catch (error) {
+            toast.error("❌ Update Failed");
+            console.error(error);
+        }
+    };
+
+    const viewDocument = (type, filename) => {
+        const url = `${API_BASE}/api/application/${id}/download/${type}/${filename}`;
+        setCurrentPdfUrl(url);
+        setCurrentPdfType(type);
+        setShowPdfModal(true);
+    };
+
+    return (
+        <div className="edit-app-container">
+            {/* Header */}
+            <div className="edit-app-header">
+                <button className="edit-back-btn" onClick={() => navigate("/onboarding")}>
+                    <ArrowLeft size={20} />
+                    Back to Applications
+                </button>
+                <h1 className="edit-app-title">Edit Application</h1>
+                <p className="edit-app-subtitle">Update application details and documents</p>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="edit-app-form">
+                {/* Personal Information Section */}
+                <div className="edit-form-section">
+                    <div className="edit-section-header">
+                        <User size={24} />
+                        <h2>Personal Information</h2>
+                    </div>
+                    <div className="edit-form-grid">
+                        <div className="edit-form-group">
+                            <label className="edit-form-label">
+                                <User size={18} />
+                                Full Name *
+                            </label>
+                            <input
+                                type="text"
+                                name="fullName"
+                                value={formData.fullName}
+                                onChange={handleInputChange}
+                                className={`edit-form-input ${errors.fullName ? 'error' : ''}`}
+                                placeholder="Enter full name"
+                            />
+                            {errors.fullName && <span className="edit-error-text">{errors.fullName}</span>}
+                        </div>
+
+                        <div className="edit-form-group">
+                            <label className="edit-form-label">
+                                <Phone size={18} />
+                                Phone Number *
+                            </label>
+                            <input
+                                type="text"
+                                name="phoneNumber"
+                                value={formData.phoneNumber}
+                                onChange={handleInputChange}
+                                className={`edit-form-input ${errors.phoneNumber ? 'error' : ''}`}
+                                placeholder="Enter 10-digit phone number"
+                                maxLength="10"
+                            />
+                            {errors.phoneNumber && <span className="edit-error-text">{errors.phoneNumber}</span>}
+                        </div>
+
+                        <div className="edit-form-group">
+                            <label className="edit-form-label">
+                                <Mail size={18} />
+                                Email *
+                            </label>
+                            <input
+                                type="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={handleInputChange}
+                                className={`edit-form-input ${errors.email ? 'error' : ''}`}
+                                placeholder="Enter email address"
+                            />
+                            {errors.email && <span className="edit-error-text">{errors.email}</span>}
+                        </div>
+
+                        <div className="edit-form-group">
+                            <label className="edit-form-label">
+                                <Calendar size={18} />
+                                Date of Birth *
+                            </label>
+                            <input
+                                type="date"
+                                name="dateOfBirth"
+                                value={formData.dateOfBirth}
+                                onChange={handleInputChange}
+                                className={`edit-form-input ${errors.dateOfBirth ? 'error' : ''}`}
+                            />
+                            {errors.dateOfBirth && <span className="edit-error-text">{errors.dateOfBirth}</span>}
+                        </div>
+                    </div>
+
+                    <div className="edit-form-group full-width">
+                        <label className="edit-form-label">
+                            <MapPin size={18} />
+                            Address *
+                        </label>
+                        <textarea
+                            name="address"
+                            value={formData.address}
+                            onChange={handleInputChange}
+                            className={`edit-form-textarea ${errors.address ? 'error' : ''}`}
+                            placeholder="Enter complete address"
+                            rows="3"
+                        />
+                        {errors.address && <span className="edit-error-text">{errors.address}</span>}
+                    </div>
+
+                    <div className="edit-form-group">
+                        <label className="edit-form-label">
+                            <CreditCard size={18} />
+                            Card Type *
+                        </label>
+                        <select
+                            name="cardType"
+                            value={formData.cardType}
+                            onChange={handleInputChange}
+                            className={`edit-form-select ${errors.cardType ? 'error' : ''}`}
+                        >
+                            <option value="">Select Card Type</option>
+                            <option value="GOLD">Gold</option>
+                            <option value="SILVER">Silver</option>
+                            <option value="PLATINUM">Platinum</option>
+                        </select>
+                        {errors.cardType && <span className="edit-error-text">{errors.cardType}</span>}
+                    </div>
+                </div>
+
+                {/* Documents Section */}
+                <div className="edit-form-section">
+                    <div className="edit-section-header">
+                        <FileText size={24} />
+                        <h2>Documents</h2>
+                    </div>
+
+                    {/* Aadhar */}
+                    <div className="edit-document-group">
+                        <label className="edit-form-label">Aadhar Card</label>
+                        <div className="edit-file-input-wrapper">
+                            <label className="edit-file-input-label">
+                                <Upload size={18} />
+                                {formData.aadharPdf ? formData.aadharPdf.name : "Choose new file..."}
+                                <input
+                                    type="file"
+                                    accept="application/pdf"
+                                    onChange={(e) => handleFileChange(e, "aadharPdf")}
+                                    className="edit-file-input-hidden"
+                                />
+                            </label>
+                            {serverFiles.aadhar && (
+                                <button
+                                    type="button"
+                                    className="edit-view-btn"
+                                    onClick={() => viewDocument("aadhar", serverFiles.aadhar)}
+                                >
+                                    <Eye size={18} />
+                                    View Existing
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* PAN */}
+                    <div className="edit-document-group">
+                        <label className="edit-form-label">PAN Card</label>
+                        <div className="edit-file-input-wrapper">
+                            <label className="edit-file-input-label">
+                                <Upload size={18} />
+                                {formData.panPdf ? formData.panPdf.name : "Choose new file..."}
+                                <input
+                                    type="file"
+                                    accept="application/pdf"
+                                    onChange={(e) => handleFileChange(e, "panPdf")}
+                                    className="edit-file-input-hidden"
+                                />
+                            </label>
+                            {serverFiles.pan && (
+                                <button
+                                    type="button"
+                                    className="edit-view-btn"
+                                    onClick={() => viewDocument("pan", serverFiles.pan)}
+                                >
+                                    <Eye size={18} />
+                                    View Existing
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Income Proof */}
+                    <div className="edit-document-group">
+                        <label className="edit-form-label">Income Proof</label>
+                        <div className="edit-file-input-wrapper">
+                            <label className="edit-file-input-label">
+                                <Upload size={18} />
+                                {formData.incomeProofPdf ? formData.incomeProofPdf.name : "Choose new file..."}
+                                <input
+                                    type="file"
+                                    accept="application/pdf"
+                                    onChange={(e) => handleFileChange(e, "incomeProofPdf")}
+                                    className="edit-file-input-hidden"
+                                />
+                            </label>
+                            {serverFiles.income && (
+                                <button
+                                    type="button"
+                                    className="edit-view-btn"
+                                    onClick={() => viewDocument("income-proof", serverFiles.income)}
+                                >
+                                    <Eye size={18} />
+                                    View Existing
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Submit Button */}
+                <div className="edit-form-actions">
+                    <button type="submit" className="edit-submit-btn">
+                        <Save size={20} />
+                        Update Application
+                    </button>
+                </div>
+            </form>
+
+            {/* PDF Viewer Modal */}
+            {showPdfModal && (
+                <div className="edit-pdf-modal-overlay" onClick={() => setShowPdfModal(false)}>
+                    <div className="edit-pdf-modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="edit-pdf-modal-header">
+                            <h3>Document Preview - {currentPdfType.toUpperCase()}</h3>
+                            <button className="edit-pdf-close-btn" onClick={() => setShowPdfModal(false)}>
+                                ×
+                            </button>
+                        </div>
+                        <div className="edit-pdf-viewer">
+                            <iframe
+                                src={currentPdfUrl}
+                                title="PDF Viewer"
+                                width="100%"
+                                height="100%"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }
 
-.pagination-btn {
-    display: flex;
+export default EditApplication;
+
+
+
+
+
+
+/* Edit Application Container */
+.edit-app-container {
+    min-height: 100vh;
+    padding: 2rem;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    animation: editFadeIn 0.6s ease;
+}
+
+@keyframes editFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Header */
+.edit-app-header {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    animation: editSlideDown 0.5s ease;
+}
+
+@keyframes editSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.edit-back-btn {
+    display: inline-flex;
     align-items: center;
     gap: 0.5rem;
     padding: 0.625rem 1.25rem;
@@ -52,411 +473,381 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
+    margin-bottom: 1rem;
 }
 
-.pagination-btn:hover:not(:disabled) {
+.edit-back-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(17, 63, 103, 0.4);
 }
 
-.pagination-btn:disabled {
-    background: #cbd5e0;
-    cursor: not-allowed;
-    opacity: 0.6;
+.edit-app-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0 0 0.5rem 0;
+    background: linear-gradient(to bottom, #007b8f, #00434e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
-.pagination-info {
-    font-size: 0.95rem;
+.edit-app-subtitle {
+    font-size: 1rem;
+    color: #718096;
+    margin: 0;
+}
+
+/* Form */
+.edit-app-form {
+    animation: editFadeInUp 0.6s ease 0.2s both;
+}
+
+@keyframes editFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.edit-form-section {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.edit-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.edit-section-header svg {
+    color: #667eea;
+}
+
+.edit-section-header h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0;
+}
+
+.edit-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.edit-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.edit-form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.edit-form-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: #4a5568;
 }
 
-@media (max-width: 768px) {
-    .pagination-container {
-        flex-direction: column;
-        gap: 1rem;
-    }
+.edit-form-label svg {
+    color: #667eea;
+}
 
-    .pagination-btn {
-        width: 100%;
-        justify-content: center;
+.edit-form-input,
+.edit-form-select,
+.edit-form-textarea {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    background: #f7fafc;
+}
+
+.edit-form-input:focus,
+.edit-form-select:focus,
+.edit-form-textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.edit-form-input.error,
+.edit-form-select.error,
+.edit-form-textarea.error {
+    border-color: #f87171;
+    background: #fef2f2;
+}
+
+.edit-form-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.edit-error-text {
+    font-size: 0.8rem;
+    color: #dc2626;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    animation: editErrorSlide 0.3s ease;
+}
+
+@keyframes editErrorSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
+/* Document Upload */
+.edit-document-group {
+    margin-bottom: 1.25rem;
+}
 
+.edit-file-input-wrapper {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
 
+.edit-file-input-label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1rem;
+    background: linear-gradient(135deg, #f6f8fb 0%, #ffffff 100%);
+    border: 2px dashed #cbd5e0;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #4a5568;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 200px;
+}
 
+.edit-file-input-label:hover {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #f0f4ff 0%, #ffffff 100%);
+    transform: translateY(-2px);
+}
 
+.edit-file-input-label svg {
+    color: #667eea;
+}
 
+.edit-file-input-hidden {
+    display: none;
+}
 
+.edit-view-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.25rem;
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
 
-import React, { useEffect, useState } from 'react';
-import { FileText, User, Phone, Calendar, CheckCircle, XCircle, Filter, X, Search, Eye, ArrowLeft, Download, ChevronLeft, ChevronRight } from 'lucide-react';
-import VerificationDetails from './VerificationDetails';
-import './DocumentVerificationApp.css'
-import axios from 'axios';
+.edit-view-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(72, 187, 120, 0.4);
+}
 
-const API_BASE = "http://localhost:8080";
- 
+/* Form Actions */
+.edit-form-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+}
 
- 
-const DocumentVerificationApp = () => {
-  const [view, setView] = useState('list');
-  const [selectedApp, setSelectedApp] = useState(null);
-  const [applications, setApplications] = useState([]);
-  const [showFilters, setShowFilters] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [showReasonModal, setShowReasonModal] = useState(false);
-  const [selectedReason, setSelectedReason] = useState('');
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [rejectionError, setRejectionError] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const [filters, setFilters] = useState({
-    search: '',
-    status: 'all',
-    cardType: 'all'
-  });
+.edit-submit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 3rem;
+    background: linear-gradient(135deg, #007b8f 0%, #00434e 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 123, 143, 0.3);
+}
 
-  const token = localStorage.getItem("token");
+.edit-submit-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 123, 143, 0.4);
+}
 
+/* PDF Modal */
+.edit-pdf-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 1rem;
+    animation: editModalFadeIn 0.3s ease;
+}
 
-  const fetchPendingApplications = async () => {
-    try {
-      const res = await axios.get(`${API_BASE}/api/document-verification/pending`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      const mapped = res.data.map(app => ({
-        id: app.appId,
-        userName: app.fullName,
-        email: app.email,
-        phone: app.phoneNumber,
-        submittedDate: app.submittedAt?.split("T")[0],
-        status: app.documentVerificationStatus.toLowerCase(),
-        cardType: app.cardType
-      }));
-
-      setApplications(mapped);
-
-    } catch (err) {
-      console.error("Fetch error", err);
+@keyframes editModalFadeIn {
+    from {
+        opacity: 0;
     }
-  };
-
-  useEffect(() => {
-    fetchPendingApplications();
-  }, [view]);
- 
-  const filteredApplications = applications.filter(app => {
-    const searchLower = filters.search.toLowerCase();
-    const matchesSearch = filters.search === '' ||
-                         app.userName.toLowerCase().includes(searchLower) ||
-                         app.id.toLowerCase().includes(searchLower) ||
-                         app.email.toLowerCase().includes(searchLower) ||
-                         app.phone.includes(filters.search) ||
-                         app.submittedDate.includes(filters.search) ||
-                         app.cardType.toLowerCase().includes(searchLower);
-    const matchesStatus = filters.status === 'all' || app.status === filters.status;
-    const matchesCardType = filters.cardType === 'all' || app.cardType === filters.cardType;
-    return matchesSearch && matchesStatus && matchesCardType;
-  });
-
-  // Pagination
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredApplications.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredApplications.length / itemsPerPage);
-
-  const paginate = (pageNumber) => setCurrentPage(pageNumber);
- 
-  const stats = {
-    total: applications.length,
-    pending: applications.filter(a => a.status === 'in_progress').length
-  };
- 
-  const activeFiltersCount = Object.values(filters).filter(v => v !== '' && v !== 'all').length;
- 
- const handleVerify = (app) => {
-    setSelectedApp(app);
-    setView("details");
-  };
-
-  
- 
-  const handleApprove = () => {
-    setApplications(prev => prev.map(app =>
-      app.id === selectedApp.id ? { ...app, status: 'approved' } : app
-    ));
-    setView('list');
-    setSelectedApp(null);
-  };
- 
-  const handleReject = () => {
-    if (!rejectionReason.trim()) {
-      setRejectionError('Please provide a rejection reason');
-      return;
+    to {
+        opacity: 1;
     }
-    setApplications(prev => prev.map(app =>
-      app.id === selectedApp.id ? { ...app, status: 'rejected', rejectionReason } : app
-    ));
-    setShowRejectModal(false);
-    setRejectionReason('');
-    setRejectionError('');
-    setView('list');
-    setSelectedApp(null);
-  };
- 
-  const resetFilters = () => {
-    setFilters({ search: '', status: 'all', cardType: 'all' });
-    setCurrentPage(1);
-  };
+}
 
-  const getStatusBadge = (status) => {
-    const badges = {
-      in_progress: { class: 'status-inprogress', icon: <Calendar size={16} />, text: 'Progress' },
-      approved: { class: 'status-approved', icon: <CheckCircle size={16} />, text: 'Approved' },
-      rejected: { class: 'status-rejected', icon: <XCircle size={16} />, text: 'Rejected' }
-    };
+.edit-pdf-modal-content {
+    background: white;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 1000px;
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: editModalSlideUp 0.3s ease;
+}
 
-    const badge = badges[status] || badges.in_progress;
+@keyframes editModalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
 
-    return (
-      <span className={`status-badge ${badge.class}`}>
-        {badge.icon}
-        {badge.text}
-      </span>
-    );
-  };
- 
-  if (view === 'details' && selectedApp) {
-    return <VerificationDetails
-      application={selectedApp}
-      onBack={() => { setView('list'); setSelectedApp(null); }}
-      onApprove={handleApprove}
-      onReject={() => setShowRejectModal(true)}
-      showRejectModal={showRejectModal}
-      setShowRejectModal={setShowRejectModal}
-      rejectionReason={rejectionReason}
-      setRejectionReason={setRejectionReason}
-      rejectionError={rejectionError}
-      setRejectionError={setRejectionError}
-      handleRejectSubmit={handleReject}
-    />;
-  }
- 
-  return (
+.edit-pdf-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #113f67 0%, #38598b 100%);
+    color: white;
+}
 
-    <div className="verification-container">
-      <header className="verification-header">
-        <div className="header-content">
-          <div className="header-left">
-            <h1 className="page-title">Document Verification</h1>
-            <p className="page-subtitle">Review and verify submitted documents</p>
-          </div>
-          <div className="header-stats">
-            <div className="stat-card">
-              <div className="stat-icon stat-icon-total">
-                <FileText size={24} />
-              </div>
-              <div className="stat-info">
-                <p className="stat-label">Total Applications</p>
-                <p className="stat-value">{stats.total}</p>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon stat-icon-pending">
-                <Calendar size={24} />
-              </div>
-              <div className="stat-info">
-                <p className="stat-label">Pending Review</p>
-                <p className="stat-value">{stats.pending}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+.edit-pdf-modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
 
-      <div className="verification-content">
-        <div className="filters-section">
-          <div className="filters-header">
-            <button
-              className={`filter-toggle-btn ${showFilters ? 'active' : ''}`}
-              onClick={() => setShowFilters(!showFilters)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.75rem 1.5rem',
-                background: showFilters ? 'linear-gradient(135deg, #113f67 0%, #38598b 100%)' : 'linear-gradient(135deg, #113f67 0%, #38598b 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '0.95rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-            >
-              <Filter size={20} />
-              Filters
-              {activeFiltersCount > 0 && (
-                <span className="filter-count">{activeFiltersCount}</span>
-              )}
-            </button>
-            {activeFiltersCount > 0 && (
-              <button className="reset-filters-btn" onClick={resetFilters}>
-                <X size={16} />
-                Reset Filters
-              </button>
-            )}
-          </div>
-          <div className={`filters-content ${showFilters ? 'show' : ''}`}>
-            <div className="filter-grid">
-              <div className="filter-group">
-                <label className="filter-label">Search</label>
-                <div className="search-input-wrapper">
-                  <Search size={18} />
-                  <input
-                    type="text"
-                    className="filter-input"
-                    placeholder="Search by name, ID, email, phone, date..."
-                    value={filters.search}
-                    onChange={(e) => {
-                      setFilters({...filters, search: e.target.value});
-                      setCurrentPage(1);
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="filter-group">
-                <label className="filter-label">Status</label>
-                <select
-                  className="filter-select"
-                  value={filters.status}
-                  onChange={(e) => {
-                    setFilters({...filters, status: e.target.value});
-                    setCurrentPage(1);
-                  }}
-                >
-                  <option value="all">All Status</option>
-                  <option value="in_progress">Progress</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div>
-              <div className="filter-group">
-                <label className="filter-label">Card Type</label>
-                <select
-                  className="filter-select"
-                  value={filters.cardType}
-                  onChange={(e) => {
-                    setFilters({...filters, cardType: e.target.value});
-                    setCurrentPage(1);
-                  }}
-                >
-                  <option value="all">All Types</option>
-                  <option value="GOLD">Gold</option>
-                  <option value="PLATINUM">Platinum</option>
-                  <option value="SILVER">silver</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="table-container">
-          <div className="table-wrapper">
-            {currentItems.length > 0 ? (
-              <table className="applications-table">
-                <thead>
-                  <tr>
-                    <th>Application ID</th>
-                    <th>User Name</th>
-                    <th>Submitted Date</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentItems.map((app, idx) => (
-                    <tr key={app.id}>
-                      <td><span className="app-id">{app.id.substring(0,8)}</span></td>
-                      <td><div className="user-name">{app.userName}</div></td>
-                      <td><span className="date-text">{app.submittedDate}</span></td>
-                      <td>{getStatusBadge(app.status)}</td>
-                      <td>
-                        <button className="verify-btn" onClick={() => handleVerify(app)}>
-                          <Eye size={18} />
-                          Verify
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p>No pending applications found.</p>
-            )}
+.edit-pdf-close-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="pagination-container">
-                <button 
-                  className="pagination-btn"
-                  onClick={() => paginate(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft size={18} />
-                  Previous
-                </button>
-                <div className="pagination-info">
-                  Page {currentPage} of {totalPages}
-                </div>
-                <button 
-                  className="pagination-btn"
-                  onClick={() => paginate(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                  <ChevronRight size={18} />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    
-   
- 
-      {showReasonModal && (
-        <div className="modal-overlay" onClick={() => setShowReasonModal(false)}>
-          <div className="simple-reason-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="simple-modal-header">
-              <div className="reason-icon-wrapper">
-                <XCircle size={24} />
-              </div>
-              <h3 className="simple-modal-title">Rejection Reason</h3>
-              <button className="simple-modal-close" onClick={() => setShowReasonModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="simple-modal-body">
-              <div className="reason-box">
-                <p className="reason-text">{selectedReason}</p>
-              </div>
-            </div>
-            <div className="simple-modal-footer">
-              <button className="simple-close-btn" onClick={() => setShowReasonModal(false)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-     </div>
-  );
-};
- 
-export default DocumentVerificationApp;
+.edit-pdf-close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: rotate(90deg);
+}
+
+.edit-pdf-viewer {
+    flex: 1;
+    overflow: hidden;
+}
+
+.edit-pdf-viewer iframe {
+    border: none;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .edit-app-container {
+        padding: 1rem;
+    }
+
+    .edit-app-header {
+        padding: 1.5rem;
+    }
+
+    .edit-app-title {
+        font-size: 1.5rem;
+    }
+
+    .edit-form-section {
+        padding: 1.5rem;
+    }
+
+    .edit-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .edit-file-input-wrapper {
+        flex-direction: column;
+    }
+
+    .edit-file-input-label,
+    .edit-view-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .edit-submit-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .edit-pdf-modal-content {
+        width: 95%;
+        height: 85vh;
+    }
+}
