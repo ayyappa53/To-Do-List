@@ -28,699 +28,904 @@
 </html>
 
 
-
-
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import './UserApplication.css';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { FileText, User, Filter, X, Search, Edit, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import "bootstrap/dist/css/bootstrap.min.css";
+import "./Onboarding.css";
 
 const API_BASE = "http://localhost:8080";
 
-export const UserApplication = () => {
-  const navigate = useNavigate();
-
-  const [formData, setFormData] = useState({
-    fullName: '',
-    dateOfBirth: '',
-    email: '',
-    phoneNumber: '',
-    cardType: '',
-    address: '',
-    aadharPdf: null,
-    panPdf: null,
-    incomeProofPdf: null,
-  });
-
-  const [uploadingFiles, setUploadingFiles] = useState({
-    aadharPdf: false,
-    panPdf: false,
-    incomeProofPdf: false
-  });
-
-  const [errors, setErrors] = useState({});
-  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
-  
-  // Previous application logic states
-  const [currentApplication, setCurrentApplication] = useState(null);
-  const [applicationHistory, setApplicationHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [hasActiveApplication, setHasActiveApplication] = useState(false);
-
-  useEffect(() => {
-    loadApplicationData();
-  }, []);
-
-  const loadApplicationData = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const response = await axios.get(`${API_BASE}/api/application/my-applications`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      const applications = Array.isArray(response.data) ? response.data : [response.data];
-      
-      if (applications && applications.length > 0) {
-        // Sort by submission date (most recent first)
-        const sorted = applications.sort((a, b) => 
-          new Date(b.submittedAt) - new Date(a.submittedAt)
-        );
-
-        // Find in-process application (either document or offer in progress)
-        const inProcessApp = sorted.find(app => 
-          app.documentVerificationStatus === 'IN_PROGRESS' || 
-          (app.documentVerificationStatus === 'APPROVED' && app.offerStatus === 'IN_PROGRESS')
-        );
-        
-        // Find latest rejected application
-        const latestRejectedApp = sorted.find(app => 
-          app.documentVerificationStatus === 'REJECTED' || app.offerStatus === 'REJECTED'
-        );
-        
-        // CHANGED: Include both approved AND rejected applications in history
-        const completedApps = sorted.filter(app => 
-          (app.documentVerificationStatus === 'APPROVED' && app.offerStatus === 'APPROVED') ||
-          app.documentVerificationStatus === 'REJECTED' || 
-          app.offerStatus === 'REJECTED'
-        );
-
-        if (inProcessApp) {
-          setCurrentApplication(inProcessApp);
-          setHasActiveApplication(true);
-        } else if (latestRejectedApp && completedApps.length === 1) {
-          // Only show rejected block if it's the only application
-          setCurrentApplication(latestRejectedApp);
-          setHasActiveApplication(false);
-        } else {
-          setCurrentApplication(null);
-          setHasActiveApplication(false);
-        }
-
-        setApplicationHistory(completedApps);
-      }
-    } catch (error) {
-      console.error('Error loading applications:', error);
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
-  };
-
-  const handleFileChange = (e, field) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-
-    setUploadingFiles(prev => ({ ...prev, [field]: true }));
-
-    setTimeout(() => {
-      setFormData(prev => ({ ...prev, [field]: file }));
-      setUploadingFiles(prev => ({ ...prev, [field]: false }));
-      if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
-    }, 700);
-  };
-
-  const validate = () => {
-    const newErrors = {};
-
-    if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
-    if (!formData.dateOfBirth) newErrors.dateOfBirth = 'DOB is required';
-    if (!formData.email.trim()) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email is invalid';
-    if (!formData.phoneNumber.trim()) newErrors.phoneNumber = 'Phone number is required';
-    else if (!/^\d{10}$/.test(formData.phoneNumber)) newErrors.phoneNumber = 'Phone number must be 10 digits';
-    if (!formData.address.trim()) newErrors.address = 'Address is required';
-    if (!formData.cardType) newErrors.cardType = 'Select card type';
-    if (!formData.aadharPdf) newErrors.aadharPdf = 'Aadhar PDF is required';
-    if (!formData.panPdf) newErrors.panPdf = 'PAN PDF is required';
-    if (!formData.incomeProofPdf) newErrors.incomeProofPdf = 'Income proof PDF is required';
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitError(null);
-
-    if (!validate()) {
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    if (!token) {
-      alert('Please login first to get a token');
-      return;
-    }
-
-    try {
-      const payload = new FormData();
-      payload.append('fullName', formData.fullName);
-      payload.append('dateOfBirth', formData.dateOfBirth);
-      payload.append('email', formData.email);
-      payload.append('phoneNumber', formData.phoneNumber);
-      payload.append('cardType', formData.cardType);
-      payload.append('address', formData.address);
-      payload.append('aadharPdf', formData.aadharPdf);
-      payload.append('panPdf', formData.panPdf);
-      payload.append('incomeProofPdf', formData.incomeProofPdf);
-
-      setUploadingFiles({ aadharPdf: true, panPdf: true, incomeProofPdf: true });
-
-      const response = await axios.post(
-        `${API_BASE}/api/application/submit`,
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          timeout: 30000
-        }
-      );
-
-      setShowSuccessMessage(true);
-      setUploadingFiles({ aadharPdf: false, panPdf: false, incomeProofPdf: false });
-
-      setFormData({
-        fullName: '',
-        dateOfBirth: '',
-        email: '',
-        phoneNumber: '',
-        cardType: '',
-        address: '',
-        aadharPdf: null,
-        panPdf: null,
-        incomeProofPdf: null,
-      });
-
-      setTimeout(() => {
-        setShowSuccessMessage(false);
-        navigate('/status');
-      }, 1600);
-
-    } catch (err) {
-      setUploadingFiles({ aadharPdf: false, panPdf: false, incomeProofPdf: false });
-      const message = err?.response?.data?.message || err.message || 'Submission failed';
-      setSubmitError(message);
-      console.error('Submit error:', err);
-    }
-  };
-
-  const handleNewApplication = () => {
-    setCurrentApplication(null);
-    setHasActiveApplication(false);
-    setShowHistory(false);
-    setFormData({
-      fullName: '',
-      dateOfBirth: '',
-      email: '',
-      phoneNumber: '',
-      cardType: '',
-      address: '',
-      aadharPdf: null,
-      panPdf: null,
-      incomeProofPdf: null,
+const Onboarding = () => {
+    const [selectedRow, setSelectedRow] = useState(null);
+    const [data, setData] = useState([]);
+    const [showFilters, setShowFilters] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(10);
+    const [filters, setFilters] = useState({
+        search: '',
+        status: 'all',
+        cardType: 'all'
     });
-  };
+    const navigate = useNavigate();
 
-  const toggleHistory = () => {
-    setShowHistory(!showHistory);
-  };
+    const shortId = (id) => id ? id.slice(0, 8) + "..." : "";
 
-  const getStatusBadgeClass = (status) => {
-    switch(status) {
-      case 'APPROVED': return 'status-approved';
-      case 'REJECTED': return 'status-rejected';
-      case 'IN_PROGRESS': return 'status-process';
-      default: return '';
-    }
-  };
+    const handleEdit = () => {
+        if (!selectedRow) return;
+        navigate(`/edit/${selectedRow.appId}`, { state: { row: selectedRow } });
+    };
 
-  const getStatusText = (status) => {
-    switch(status) {
-      case 'APPROVED': return 'Approved';
-      case 'REJECTED': return 'Rejected';
-      case 'IN_PROGRESS': return 'In Process';
-      default: return status;
-    }
-  };
+    const fetchAllApplications = async () => {
+        try {
+            const token = localStorage.getItem("token"); 
+            const response = await axios.get(`${API_BASE}/api/onboarding/all`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setData(response.data || []);
+        } catch (error) {
+            console.error("Error fetching applications:", error.response?.data || error.message);
+        }
+    };
 
-  const fileLabel = (file, placeholder) => {
-    if (!file) return (
-      <div className="file-placeholder">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        <span>{placeholder}</span>
-      </div>
-    );
+    useEffect(() => {
+        fetchAllApplications();
+    }, []);
+
+    const filteredData = data.filter((item) => {
+        const query = filters.search.toLowerCase();
+        const matchesSearch = filters.search === '' ||
+            item.fullName.toLowerCase().includes(query) ||
+            item.appId.toLowerCase().includes(query) ||
+            item.email.toLowerCase().includes(query) ||
+            item.phoneNumber.includes(filters.search) ||
+            item.cardType.toLowerCase().includes(query);
+        const matchesStatus = filters.status === 'all' || item.status === filters.status;
+        const matchesCardType = filters.cardType === 'all' || item.cardType === filters.cardType;
+        return matchesSearch && matchesStatus && matchesCardType;
+    });
+
+    // Pagination
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+
+    const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+    const stats = {
+        total: data.length,
+        approved: data.filter(a => a.status === 'APPROVED').length,
+        pending: data.filter(a => a.status === 'PENDING').length,
+        rejected: data.filter(a => a.status === 'REJECTED').length
+    };
+
+    const activeFiltersCount = Object.values(filters).filter(v => v !== '' && v !== 'all').length;
+
+    const resetFilters = () => {
+        setFilters({ search: '', status: 'all', cardType: 'all' });
+        setCurrentPage(1);
+    };
+
+    const getStatusBadge = (status) => {
+        const badges = {
+            PENDING: { class: 'onboarding-status-pending', text: 'Pending' },
+            APPROVED: { class: 'onboarding-status-approved', text: 'Approved' },
+            REJECTED: { class: 'onboarding-status-rejected', text: 'Rejected' }
+        };
+        const badge = badges[status] || badges.PENDING;
+        return <span className={`onboarding-status-badge ${badge.class}`}>{badge.text}</span>;
+    };
+
     return (
-      <div className="file-uploaded">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M9 12l2 2 4-4"/>
-          <circle cx="12" cy="12" r="10"/>
-        </svg>
-        <span>{file.name}</span>
-      </div>
+        <div className='onboarding-page-container'>
+            <header className="onboarding-header-section">
+                <div className="onboarding-header-content">
+                    <div className="onboarding-header-left">
+                        <h1 className="onboarding-page-title">Application Management</h1>
+                        <p className="onboarding-page-subtitle">Welcome back, <span style={{ color: '#007b8f' }}>User!</span></p>
+                    </div>
+                    <div className="onboarding-stats-container">
+                        <div className="onboarding-stat-card">
+                            <div className="onboarding-stat-icon onboarding-stat-icon-total">
+                                <FileText size={24} />
+                            </div>
+                            <div className="onboarding-stat-info">
+                                <p className="onboarding-stat-label">Total Applications</p>
+                                <p className="onboarding-stat-value">{stats.total}</p>
+                            </div>
+                        </div>
+                        <div className="onboarding-stat-card">
+                            <div className="onboarding-stat-icon onboarding-stat-icon-pending">
+                                <User size={24} />
+                            </div>
+                            <div className="onboarding-stat-info">
+                                <p className="onboarding-stat-label">Pending</p>
+                                <p className="onboarding-stat-value">{stats.pending}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div className="onboarding-content-section">
+                <div className="onboarding-filters-section">
+                    <div className="onboarding-filters-header">
+                        <button
+                            className={`onboarding-filter-toggle-btn ${showFilters ? 'active' : ''}`}
+                            onClick={() => setShowFilters(!showFilters)}
+                        >
+                            <Filter size={20} />
+                            Filters
+                            {activeFiltersCount > 0 && (
+                                <span className="onboarding-filter-count">{activeFiltersCount}</span>
+                            )}
+                        </button>
+                        {activeFiltersCount > 0 && (
+                            <button className="onboarding-reset-filters-btn" onClick={resetFilters}>
+                                <X size={16} />
+                                Reset Filters
+                            </button>
+                        )}
+                    </div>
+                    <div className={`onboarding-filters-content ${showFilters ? 'show' : ''}`}>
+                        <div className="onboarding-filter-grid">
+                            <div className="onboarding-filter-group">
+                                <label className="onboarding-filter-label">Search</label>
+                                <div className="onboarding-search-input-wrapper">
+                                    <Search size={18} />
+                                    <input
+                                        type="text"
+                                        className="onboarding-filter-input"
+                                        placeholder="Search by name, ID, email, phone..."
+                                        value={filters.search}
+                                        onChange={(e) => {
+                                            setFilters({...filters, search: e.target.value});
+                                            setCurrentPage(1);
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="onboarding-filter-group">
+                                <label className="onboarding-filter-label">Status</label>
+                                <select
+                                    className="onboarding-filter-select"
+                                    value={filters.status}
+                                    onChange={(e) => {
+                                        setFilters({...filters, status: e.target.value});
+                                        setCurrentPage(1);
+                                    }}
+                                >
+                                    <option value="all">All Status</option>
+                                    <option value="PENDING">Pending</option>
+                                    <option value="APPROVED">Approved</option>
+                                    <option value="REJECTED">Rejected</option>
+                                </select>
+                            </div>
+                            <div className="onboarding-filter-group">
+                                <label className="onboarding-filter-label">Card Type</label>
+                                <select
+                                    className="onboarding-filter-select"
+                                    value={filters.cardType}
+                                    onChange={(e) => {
+                                        setFilters({...filters, cardType: e.target.value});
+                                        setCurrentPage(1);
+                                    }}
+                                >
+                                    <option value="all">All Types</option>
+                                    <option value="GOLD">Gold</option>
+                                    <option value="PLATINUM">Platinum</option>
+                                    <option value="SILVER">Silver</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="onboarding-table-container">
+                    <div className="onboarding-table-wrapper">
+                        <table className='onboarding-applications-table'>
+                            <thead>
+                                <tr>
+                                    <th>Select</th>
+                                    <th>Sl. No.</th>
+                                    <th>Application ID</th>
+                                    <th>Card Holder Name</th>
+                                    <th>Status</th>
+                                    <th>Email</th>
+                                    <th>Contact</th>
+                                    <th>Card Type</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {currentItems.length > 0 ? (
+                                    currentItems.map((row, index) => (
+                                        <tr key={row.appId}>
+                                            <td>
+                                                <input
+                                                    type="radio"
+                                                    name="selectedRow"
+                                                    onChange={() => setSelectedRow(row)}
+                                                    checked={selectedRow?.appId === row.appId}
+                                                />
+                                            </td>
+                                            <td>{indexOfFirstItem + index + 1}</td>
+                                            <td><span className="onboarding-app-id" title={row.appId}>{shortId(row.appId)}</span></td>
+                                            <td><div className="onboarding-user-name">{row.fullName}</div></td>
+                                            <td>{getStatusBadge(row.status)}</td>
+                                            <td>
+                                                <a href={`mailto:${row.email}`} className='onboarding-email-link'>
+                                                    {row.email}
+                                                </a>
+                                            </td>
+                                            <td><span className="onboarding-phone-text">{row.phoneNumber}</span></td>
+                                            <td>{row.cardType}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="8" className="text-center text-muted py-3">
+                                            No results found.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="onboarding-pagination-container">
+                            <button 
+                                className="onboarding-pagination-btn"
+                                onClick={() => paginate(currentPage - 1)}
+                                disabled={currentPage === 1}
+                            >
+                                <ChevronLeft size={18} />
+                                Previous
+                            </button>
+                            <div className="onboarding-pagination-info">
+                                Page {currentPage} of {totalPages}
+                            </div>
+                            <button 
+                                className="onboarding-pagination-btn"
+                                onClick={() => paginate(currentPage + 1)}
+                                disabled={currentPage === totalPages}
+                            >
+                                Next
+                                <ChevronRight size={18} />
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                <div className='onboarding-action-buttons'>
+                    <button 
+                        onClick={handleEdit} 
+                        className="onboarding-action-btn onboarding-edit-btn"
+                        disabled={!selectedRow}
+                    >
+                        <Edit size={18} />
+                        Edit Form
+                    </button>
+                    <Link to="/add/newuser/details">
+                        <button className="onboarding-action-btn onboarding-create-btn">
+                            <PlusCircle size={18} />
+                            Create New
+                        </button>
+                    </Link>
+                </div>
+            </div>
+        </div>
     );
-  };
-
-  const isRejected = currentApplication && 
-    (currentApplication.documentVerificationStatus === 'REJECTED' || 
-     currentApplication.offerStatus === 'REJECTED');
-
-  return (
-    <div className="application-container">
-      {showSuccessMessage && (
-        <div className="success-toast">
-          <div className="success-toast-content">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M9 12l2 2 4-4"/>
-              <circle cx="12" cy="12" r="10"/>
-            </svg>
-            <span>Application submitted successfully! Redirecting to status page...</span>
-          </div>
-        </div>
-      )}
-
-      {submitError && (
-        <div className="error-banner">
-          <span>{submitError}</span>
-        </div>
-      )}
-
-      <div className="form-header">
-        <h1 className="form-title" style={{ backgroundImage: "linear-gradient(to bottom, #007b8f, #00434e)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", WebkitTextFillColor: "transparent" }}>
-          Credit Card Application
-        </h1>
-        <p className="form-subtitle">Fill in your details to apply for a credit card</p>
-      </div>
-
-      {/* Application History Toggle */}
-      {applicationHistory.length > 0 && !hasActiveApplication && (
-        <div className="history-toggle-section">
-          <button className="history-toggle-btn" onClick={toggleHistory}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-            {showHistory ? 'Hide' : 'View'} Application History ({applicationHistory.length})
-          </button>
-        </div>
-      )}
-
-      {/* Application History */}
-      {showHistory && applicationHistory.length > 0 && (
-        <div className="history-container">
-          <h2 className="history-title">Previous Applications</h2>
-          <div className="history-list">
-            {applicationHistory.map((app) => {
-              const isAppRejected = app.documentVerificationStatus === 'REJECTED' || app.offerStatus === 'REJECTED';
-              const finalStatus = app.offerStatus === 'REJECTED' ? 'REJECTED' : 
-                                 app.documentVerificationStatus === 'REJECTED' ? 'REJECTED' : 
-                                 app.offerStatus;
-              
-              return (
-                <div key={app.appId} className="history-card">
-                  <div className="history-header">
-                    <div className="history-info">
-                      <h3 className="history-name">{app.fullName}</h3>
-                      <p className="history-date">
-                        Application ID: {app.appId.substring(0, 8)}...
-                      </p>
-                      <p className="history-date">
-                        {new Date(app.submittedAt).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </p>
-                    </div>
-                    <span className={`status-badge ${getStatusBadgeClass(finalStatus)}`}>
-                      {getStatusText(finalStatus)}
-                    </span>
-                  </div>
-                  
-                  <div className="history-details">
-                    <div className="history-detail-item">
-                      <span className="history-label">Card Type:</span>
-                      <span className="history-value">{app.cardType}</span>
-                    </div>
-                    <div className="history-detail-item">
-                      <span className="history-label">Email:</span>
-                      <span className="history-value">{app.email}</span>
-                    </div>
-                    <div className="history-detail-item">
-                      <span className="history-label">Contact:</span>
-                      <span className="history-value">{app.phoneNumber}</span>
-                    </div>
-                    <div className="history-detail-item">
-                      <span className="history-label">Document Status:</span>
-                      <span className={`status-badge ${getStatusBadgeClass(app.documentVerificationStatus)}`}>
-                        {getStatusText(app.documentVerificationStatus)}
-                      </span>
-                    </div>
-                    <div className="history-detail-item">
-                      <span className="history-label">Offer Status:</span>
-                      <span className={`status-badge ${getStatusBadgeClass(app.offerStatus)}`}>
-                        {getStatusText(app.offerStatus)}
-                      </span>
-                    </div>
-                    
-                    {/* Show rejection reasons */}
-                    {app.documentRejectReason && (
-                      <div className="history-detail-item rejection-reason">
-                        <span className="history-label">Document Rejection Reason:</span>
-                        <span className="history-value rejection-text">{app.documentRejectReason}</span>
-                      </div>
-                    )}
-                    {app.offerRejectReason && (
-                      <div className="history-detail-item rejection-reason">
-                        <span className="history-label">Offer Rejection Reason:</span>
-                        <span className="history-value rejection-text">{app.offerRejectReason}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Block for In-Process Application */}
-      {hasActiveApplication && currentApplication ? (
-        <div className="active-application-block">
-          <div className="block-icon">
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-          </div>
-          <h2 className="block-title">Application In Progress</h2>
-          <p className="block-message">
-            You already have an active credit card application being processed. 
-            You cannot submit a new application until your current one is completed.
-          </p>
-          <div className="block-actions">
-            <button className="view-status-btn" onClick={() => navigate('/status')}>
-              View Application Status
-            </button>
-          </div>
-        </div>
-      ) : isRejected && currentApplication ? (
-        <div className="active-application-block">
-          <div className="block-icon">
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-          </div>
-          <h2 className="block-title">Application Rejected</h2>
-          <p className="block-message">
-            Your previous application was rejected. You can now apply for a new credit card.
-          </p>
-          
-          {/* Show rejection reasons in the block */}
-          <div className="rejection-details-block">
-            {currentApplication.documentRejectReason && (
-              <div className="rejection-item-block">
-                <span className="rejection-label-block">Document Rejection Reason:</span>
-                <span className="rejection-text-block">{currentApplication.documentRejectReason}</span>
-              </div>
-            )}
-            {currentApplication.offerRejectReason && (
-              <div className="rejection-item-block">
-                <span className="rejection-label-block">Offer Rejection Reason:</span>
-                <span className="rejection-text-block">{currentApplication.offerRejectReason}</span>
-              </div>
-            )}
-          </div>
-          
-          <div className="block-actions">
-            <button 
-              className="edit-application-btn" 
-              onClick={handleNewApplication}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-              Apply New Application
-            </button>
-          </div>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="application-form" encType="multipart/form-data">
-          <div className="form-section">
-            <h3 className="section-title">Personal Information</h3>
-
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">Full Name *</label>
-                <input
-                  type="text"
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.fullName ? 'error' : ''}`}
-                  placeholder="John Doe"
-                />
-                {errors.fullName && <span className="error-text">{errors.fullName}</span>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">DOB *</label>
-                <input
-                  type="date"
-                  name="dateOfBirth"
-                  value={formData.dateOfBirth}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.dateOfBirth ? 'error' : ''}`}
-                />
-                {errors.dateOfBirth && <span className="error-text">{errors.dateOfBirth}</span>}
-              </div>
-            </div>
-
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">Email Address *</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.email ? 'error' : ''}`}
-                  placeholder="john.doe@example.com"
-                />
-                {errors.email && <span className="error-text">{errors.email}</span>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Contact Number *</label>
-                <input
-                  type="tel"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.phoneNumber ? 'error' : ''}`}
-                  placeholder="9876543210"
-                  maxLength="10"
-                />
-                {errors.phoneNumber && <span className="error-text">{errors.phoneNumber}</span>}
-              </div>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <h3 className="section-title">Details</h3>
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">Address *</label>
-                <textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.address ? 'error' : ''}`}
-                  placeholder="Enter your complete address"
-                  rows="3"
-                />
-                {errors.address && <span className="error-text">{errors.address}</span>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Card Type *</label>
-                <div className="select-wrapper">
-                  <select
-                    name="cardType"
-                    value={formData.cardType}
-                    onChange={handleInputChange}
-                    className={`form-select ${errors.cardType ? 'error' : ''}`}
-                  >
-                    <option value="">Select Card Type</option>
-                    <option value="GOLD">Gold Card</option>
-                    <option value="SILVER">Silver Card</option>
-                    <option value="PLATINUM">Platinum Card</option>
-                  </select>
-                  <svg className="select-arrow" width="12" height="8" viewBox="0 0 12 8" fill="none">
-                    <path d="M1 1L6 6L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-                {errors.cardType && <span className="error-text">{errors.cardType}</span>}
-              </div>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <h3 className="section-title">Document Upload</h3>
-
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">Aadhar Card (PDF) *</label>
-                <div className={`file-upload ${errors.aadharPdf ? 'error' : ''}`}>
-                  <input
-                    type="file"
-                    id="aadhar"
-                    accept=".pdf"
-                    name="aadharPdf"
-                    onChange={(e) => handleFileChange(e, 'aadharPdf')}
-                    className="file-input"
-                  />
-                  <label htmlFor="aadhar" className="file-label">
-                    {uploadingFiles.aadharPdf ? (
-                      <div className="upload-loading">
-                        <div className="spinner"></div>
-                        <span>Uploading...</span>
-                      </div>
-                    ) : fileLabel(formData.aadharPdf, 'Upload Aadhar Card')}
-                  </label>
-                </div>
-                {errors.aadharPdf && <span className="error-text">{errors.aadharPdf}</span>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">PAN Card (PDF) *</label>
-                <div className={`file-upload ${errors.panPdf ? 'error' : ''}`}>
-                  <input
-                    type="file"
-                    id="pan"
-                    accept=".pdf"
-                    name="panPdf"
-                    onChange={(e) => handleFileChange(e, 'panPdf')}
-                    className="file-input"
-                  />
-                  <label htmlFor="pan" className="file-label">
-                    {uploadingFiles.panPdf ? (
-                      <div className="upload-loading">
-                        <div className="spinner"></div>
-                        <span>Uploading...</span>
-                      </div>
-                    ) : fileLabel(formData.panPdf, 'Upload PAN Card')}
-                  </label>
-                </div>
-                {errors.panPdf && <span className="error-text">{errors.panPdf}</span>}
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Income Tax Proof (PDF) *</label>
-              <div className={`file-upload ${errors.incomeProofPdf ? 'error' : ''}`}>
-                <input
-                  type="file"
-                  id="incomeTax"
-                  accept=".pdf"
-                  name="incomeProofPdf"
-                  onChange={(e) => handleFileChange(e, 'incomeProofPdf')}
-                  className="file-input"
-                />
-                <label htmlFor="incomeTax" className="file-label">
-                  {uploadingFiles.incomeProofPdf ? (
-                    <div className="upload-loading">
-                      <div className="spinner"></div>
-                      <span>Uploading...</span>
-                    </div>
-                  ) : fileLabel(formData.incomeProofPdf, 'Upload Income Tax Proof')}
-                </label>
-              </div>
-              {errors.incomeProofPdf && <span className="error-text">{errors.incomeProofPdf}</span>}
-            </div>
-          </div>
-
-          <div className="form-actions">
-            <button type="submit" className="submit-button">
-              <span>Submit Application</span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
 };
 
-export default UserApplication;
+export default Onboarding;
 
 
 
+/* ONBOARDING PAGE STYLES */
 
-.rejection-reason {
-  flex-direction: column;
-  align-items: flex-start !important;
-  background-color: #fee2e2;
-  padding: 12px;
-  border-radius: 6px;
-  border-left: 3px solid #dc2626;
-  margin-top: 8px;
+.onboarding-page-container {
+    min-height: 100vh;
+    padding: 2rem;
+    animation: onboardingFadeIn 0.6s ease;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
 }
 
-.rejection-text {
-  color: #dc2626;
-  font-weight: 500;
-  margin-top: 4px;
-  word-break: break-word;
+@keyframes onboardingFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-.rejection-details-block {
-  width: 100%;
-  margin: 20px 0;
-  padding: 16px;
-  background-color: #fee2e2;
-  border-radius: 8px;
-  border-left: 4px solid #dc2626;
+.onboarding-header-section {
+    margin-bottom: 2rem;
+    animation: onboardingSlideDown 0.5s ease;
 }
 
-.rejection-item-block {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 12px;
+@keyframes onboardingSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-.rejection-item-block:last-child {
-  margin-bottom: 0;
+.onboarding-header-content {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
 }
 
-.rejection-label-block {
-  font-weight: 600;
-  color: #991b1b;
-  margin-bottom: 4px;
-  font-size: 14px;
+.onboarding-header-left {
+    flex: 1;
 }
 
-.rejection-text-block {
-  color: #dc2626;
-  font-size: 14px;
-  line-height: 1.5;
-  word-break: break-word;
+.onboarding-page-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0 0 0.5rem 0;
+    background: linear-gradient(to bottom, #007b8f, #00434e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.onboarding-page-subtitle {
+    font-size: 1rem;
+    color: #718096;
+    margin: 0;
+}
+
+.onboarding-stats-container {
+    display: flex;
+    gap: 1rem;
+}
+
+.onboarding-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #f6f8fb 0%, #ffffff 100%);
+    border-radius: 12px;
+    border: 2px solid #e2e8f0;
+    transition: all 0.3s ease;
+}
+
+.onboarding-stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.onboarding-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.onboarding-stat-icon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+    animation: onboardingShimmer 2s infinite;
+}
+
+@keyframes onboardingShimmer {
+    0% { transform: translateX(-100%) translateY(-100%); }
+    100% { transform: translateX(100%) translateY(100%); }
+}
+
+.onboarding-stat-icon-total {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.onboarding-stat-icon-pending {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.onboarding-stat-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.onboarding-stat-label {
+    font-size: 0.875rem;
+    color: #718096;
+    margin: 0;
+    font-weight: 500;
+}
+
+.onboarding-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin: 0;
+}
+
+.onboarding-content-section {
+    animation: onboardingFadeInUp 0.6s ease 0.2s both;
+}
+
+@keyframes onboardingFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.onboarding-filters-section {
+    background: white;
+    border-radius: 20px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+}
+
+.onboarding-filters-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.onboarding-filter-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #113f67 0%, #38598b 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.onboarding-filter-toggle-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+}
+
+.onboarding-filter-toggle-btn:hover::before {
+    transform: translateX(100%);
+}
+
+.onboarding-filter-toggle-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(17, 63, 103, 0.4);
+}
+
+.onboarding-filter-count {
+    background: rgba(255, 255, 255, 0.3);
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.onboarding-reset-filters-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    background: #f7fafc;
+    color: #718096;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.onboarding-reset-filters-btn:hover {
+    background: #edf2f7;
+    border-color: #cbd5e0;
+    transform: translateY(-2px);
+}
+
+.onboarding-filters-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s ease;
+    opacity: 0;
+}
+
+.onboarding-filters-content.show {
+    max-height: 500px;
+    opacity: 1;
+    margin-top: 1rem;
+}
+
+.onboarding-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.25rem;
+}
+
+.onboarding-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.onboarding-filter-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.onboarding-search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.onboarding-search-input-wrapper svg {
+    position: absolute;
+    left: 1rem;
+    color: #a0aec0;
+    pointer-events: none;
+}
+
+.onboarding-filter-input {
+    width: 100%;
+    padding: 0.875rem 1rem 0.875rem 3rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+    background: #f7fafc;
+}
+
+.onboarding-filter-input:focus {
+    outline: none;
+    border-color: #667eea;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.onboarding-filter-select {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    background: #f7fafc;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.onboarding-filter-select:focus {
+    outline: none;
+    border-color: #667eea;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.onboarding-table-container {
+    background: white;
+    border-radius: 20px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.onboarding-table-wrapper {
+    overflow-x: auto;
+    border-radius: 12px;
+}
+
+.onboarding-applications-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.onboarding-applications-table thead tr {
+    background: linear-gradient(135deg, #f6f8fb 0%, #edf2f7 100%);
+}
+
+.onboarding-applications-table th {
+    padding: 1.25rem 1rem;
+    text-align: left;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.onboarding-applications-table tbody tr {
+    transition: all 0.3s ease;
+    animation: onboardingSlideInTable 0.5s ease both;
+    border-bottom: 1px solid #f7fafc;
+}
+
+@keyframes onboardingSlideInTable {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.onboarding-applications-table tbody tr:hover {
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    transform: scale(1.01);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.onboarding-applications-table td {
+    padding: 1.25rem 1rem;
+    font-size: 0.95rem;
+    color: #2d3748;
+}
+
+.onboarding-app-id {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    color: #667eea;
+    background: rgba(102, 126, 234, 0.1);
+    padding: 0.375rem 0.75rem;
+    border-radius: 8px;
+    display: inline-block;
+}
+
+.onboarding-user-name {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.onboarding-email-link {
+    color: #667eea;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.onboarding-email-link:hover {
+    color: #764ba2;
+    text-decoration: underline;
+}
+
+.onboarding-phone-text {
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.onboarding-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.onboarding-status-pending {
+    background: linear-gradient(135deg, #fff5e6 0%, #ffe4b3 100%);
+    color: #d97706;
+    border: 2px solid #fbbf24;
+}
+
+.onboarding-status-approved {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    color: #047857;
+    border: 2px solid #34d399;
+}
+
+.onboarding-status-rejected {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #dc2626;
+    border: 2px solid #f87171;
+}
+
+/* Pagination */
+.onboarding-pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid #e2e8f0;
+}
+
+.onboarding-pagination-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: linear-gradient(135deg, #113f67 0%, #38598b 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.onboarding-pagination-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(17, 63, 103, 0.4);
+}
+
+.onboarding-pagination-btn:disabled {
+    background: #cbd5e0;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.onboarding-pagination-info {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+/* Action Buttons */
+.onboarding-action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.onboarding-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    color: white;
+}
+
+.onboarding-action-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
+    transform: translateX(-100%) rotate(45deg);
+    transition: transform 0.5s ease;
+}
+
+.onboarding-action-btn:hover::before {
+    transform: translateX(100%) rotate(45deg);
+}
+
+.onboarding-edit-btn {
+    background: linear-gradient(135deg, #007b8f 0%, #00434e 100%);
+}
+
+.onboarding-edit-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 123, 143, 0.4);
+}
+
+.onboarding-edit-btn:disabled {
+    background: #cbd5e0;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.onboarding-create-btn {
+    background: linear-gradient(135deg, #113f67 0%, #38598b 100%);
+}
+
+.onboarding-create-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(17, 63, 103, 0.4);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .onboarding-page-container {
+        padding: 1rem;
+    }
+
+    .onboarding-header-content {
+        flex-direction: column;
+        padding: 1.5rem;
+    }
+
+    .onboarding-stats-container {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .onboarding-stat-card {
+        width: 100%;
+    }
+
+    .onboarding-page-title {
+        font-size: 1.5rem;
+    }
+
+    .onboarding-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .onboarding-action-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .onboarding-action-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .onboarding-pagination-container {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .onboarding-pagination-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .onboarding-applications-table {
+        font-size: 0.85rem;
+    }
+
+    .onboarding-applications-table th,
+    .onboarding-applications-table td {
+        padding: 0.75rem 0.5rem;
+    }
 }
