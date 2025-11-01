@@ -31,6 +31,7 @@
 
 
 
+
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
 import { Modal } from "bootstrap";
@@ -182,6 +183,7 @@ export default function OfferConfirmation() {
       alert(`✅ Application ${action}`);
       fetchApprovedData();
       setRejectReason("");
+      setExpandedRow(null);
       bsModal.current?.hide();
     } catch (err) {
       console.error("Offer Process Error:", err);
@@ -349,11 +351,7 @@ export default function OfferConfirmation() {
                               Rejected
                             </span>
                           ) : (
-                            <div 
-                              className="offer-verify-container"
-                              onMouseEnter={() => setExpandedRow(r.appId)}
-                              onMouseLeave={() => setExpandedRow(null)}
-                            >
+                            <div className="offer-verify-container">
                               {expandedRow === r.appId ? (
                                 <div className="offer-action-buttons-expanded">
                                   <button
@@ -488,6 +486,9 @@ export default function OfferConfirmation() {
     </div>
   );
 }
+
+
+
 
 
 
@@ -926,7 +927,7 @@ export default function OfferConfirmation() {
 /* Verify Container */
 .offer-verify-container {
     position: relative;
-    min-width: 220px;
+    min-width: 120px;
 }
 
 /* Verify Button */
@@ -935,18 +936,19 @@ export default function OfferConfirmation() {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    padding: 0.625rem 1.5rem;
+    padding: 0.625rem 1rem;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border: none;
     border-radius: 10px;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
     width: 100%;
+    white-space: nowrap;
 }
 
 .offer-verify-btn::before {
@@ -991,26 +993,18 @@ export default function OfferConfirmation() {
     }
 }
 
-/* Action Buttons Wrapper */
-.offer-action-buttons-wrapper {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: nowrap;
-    min-width: 220px;
-}
-
 /* Action Buttons */
 .offer-approve-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.375rem;
-    padding: 0.625rem 1rem;
+    padding: 0.625rem 0.75rem;
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: white;
     border: none;
     border-radius: 10px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -1049,12 +1043,12 @@ export default function OfferConfirmation() {
     align-items: center;
     justify-content: center;
     gap: 0.375rem;
-    padding: 0.625rem 1rem;
+    padding: 0.625rem 0.75rem;
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     color: white;
     border: none;
     border-radius: 10px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
