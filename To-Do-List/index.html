@@ -30,8 +30,6 @@
 
 
 
-
-
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
 import { Modal } from "bootstrap";
@@ -351,35 +349,40 @@ export default function OfferConfirmation() {
                               Rejected
                             </span>
                           ) : (
-                            <div className="offer-verify-container">
-                              {expandedRow === r.appId ? (
-                                <div className="offer-action-buttons-expanded">
+                            <div className="offer-verify-dropdown">
+                              <button
+                                className="offer-verify-btn"
+                                onClick={() => setExpandedRow(expandedRow === r.appId ? null : r.appId)}
+                                disabled={isDisabled}
+                              >
+                                <FileText size={16} />
+                                Verify
+                              </button>
+                              {expandedRow === r.appId && (
+                                <div className="offer-dropdown-menu">
                                   <button
-                                    className="offer-approve-btn"
-                                    onClick={() => handleActionClick(r)}
+                                    className="offer-dropdown-item offer-approve-item"
+                                    onClick={() => {
+                                      setExpandedRow(null);
+                                      handleActionClick(r);
+                                    }}
                                     disabled={isDisabled}
                                   >
                                     <CheckCircle size={16} />
                                     Approve
                                   </button>
                                   <button
-                                    className="offer-reject-btn"
-                                    onClick={() => openRejectPopup(r)}
+                                    className="offer-dropdown-item offer-reject-item"
+                                    onClick={() => {
+                                      setExpandedRow(null);
+                                      openRejectPopup(r);
+                                    }}
                                     disabled={isDisabled}
                                   >
                                     <XCircle size={16} />
                                     Reject
                                   </button>
                                 </div>
-                              ) : (
-                                <button
-                                  className="offer-verify-btn"
-                                  onClick={() => setExpandedRow(r.appId)}
-                                  disabled={isDisabled}
-                                >
-                                  <FileText size={16} />
-                                  Verify
-                                </button>
                               )}
                             </div>
                           )}
@@ -486,9 +489,6 @@ export default function OfferConfirmation() {
     </div>
   );
 }
-
-
-
 
 
 
@@ -924,10 +924,10 @@ export default function OfferConfirmation() {
     border: 2px solid #fbbf24;
 }
 
-/* Verify Container */
-.offer-verify-container {
+/* Verify Dropdown */
+.offer-verify-dropdown {
     position: relative;
-    min-width: 120px;
+    display: inline-block;
 }
 
 /* Verify Button */
@@ -947,7 +947,7 @@ export default function OfferConfirmation() {
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
-    width: 100%;
+    min-width: 120px;
     white-space: nowrap;
 }
 
@@ -975,111 +975,80 @@ export default function OfferConfirmation() {
     opacity: 0.6;
 }
 
-/* Action Buttons Expanded */
-.offer-action-buttons-expanded {
-    display: flex;
-    gap: 0.5rem;
-    animation: offerExpandButtons 0.3s ease;
+/* Dropdown Menu */
+.offer-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    right: 0;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    overflow: hidden;
+    animation: offerDropdownSlide 0.3s ease;
+    min-width: 150px;
 }
 
-@keyframes offerExpandButtons {
+@keyframes offerDropdownSlide {
     from {
         opacity: 0;
-        transform: scale(0.95);
+        transform: translateY(-10px);
     }
     to {
         opacity: 1;
-        transform: scale(1);
+        transform: translateY(0);
     }
 }
 
-/* Action Buttons */
-.offer-approve-btn {
-    display: inline-flex;
+/* Dropdown Items */
+.offer-dropdown-item {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.375rem;
-    padding: 0.625rem 0.75rem;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
+    gap: 0.5rem;
+    padding: 0.875rem 1rem;
+    width: 100%;
     border: none;
-    border-radius: 10px;
-    font-size: 0.8rem;
+    background: white;
+    color: #2d3748;
+    font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-    flex: 1;
-    white-space: nowrap;
+    transition: all 0.2s ease;
+    text-align: left;
+    border-bottom: 1px solid #f7fafc;
 }
 
-.offer-approve-btn::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
-    transform: translateX(-100%) rotate(45deg);
-    transition: transform 0.5s ease;
+.offer-dropdown-item:last-child {
+    border-bottom: none;
 }
 
-.offer-approve-btn:hover::before {
-    transform: translateX(100%) rotate(45deg);
+.offer-dropdown-item:hover:not(:disabled) {
+    background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+    transform: translateX(4px);
 }
 
-.offer-approve-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
-}
-
-.offer-approve-btn:disabled {
-    background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
+.offer-dropdown-item:disabled {
     cursor: not-allowed;
-    opacity: 0.6;
+    opacity: 0.5;
 }
 
-.offer-reject-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.375rem;
-    padding: 0.625rem 0.75rem;
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-    flex: 1;
-    white-space: nowrap;
+.offer-approve-item {
+    color: #059669;
 }
 
-.offer-reject-btn::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
-    transform: translateX(-100%) rotate(45deg);
-    transition: transform 0.5s ease;
+.offer-approve-item:hover:not(:disabled) {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    color: #047857;
 }
 
-.offer-reject-btn:hover::before {
-    transform: translateX(100%) rotate(45deg);
+.offer-reject-item {
+    color: #dc2626;
 }
 
-.offer-reject-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
-}
-
-.offer-reject-btn:disabled {
-    background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
-    cursor: not-allowed;
-    opacity: 0.6;
+.offer-reject-item:hover:not(:disabled) {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #b91c1c;
 }
 
 /* Pagination */
